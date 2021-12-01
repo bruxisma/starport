@@ -246,7 +246,7 @@ func fetchSource(
 	}
 
 	// ensure the path for chain source exists
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0o755); err != nil {
 		return "", "", err
 	}
 

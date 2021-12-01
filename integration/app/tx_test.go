@@ -8,9 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/tendermint/starport/integration"
 	"net/http"
 	"testing"
+
+	"github.com/tendermint/starport/integration"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
