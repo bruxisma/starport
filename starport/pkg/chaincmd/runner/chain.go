@@ -223,7 +223,7 @@ func (r Runner) Export(ctx context.Context, exportedFile string) error {
 	}
 
 	// Save the new state
-	return os.WriteFile(exportedFile, exportedState, 0644)
+	return os.WriteFile(exportedFile, exportedState, 0o644)
 }
 
 // EventSelector is used to query events.

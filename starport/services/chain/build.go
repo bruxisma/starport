@@ -108,7 +108,7 @@ func (c *Chain) BuildRelease(ctx context.Context, output, prefix string, targets
 		}
 	}
 
-	if err := os.MkdirAll(releasePath, 0755); err != nil {
+	if err := os.MkdirAll(releasePath, 0o755); err != nil {
 		return "", err
 	}
 

@@ -20,12 +20,10 @@ var (
 	ConfigFileNames = []string{"config.yml", "config.yaml"}
 )
 
-var (
-	// ErrCouldntLocateConfig returned when config.yml cannot be found in the source code.
-	ErrCouldntLocateConfig = errors.New(
-		"could not locate a config.yml in your chain. please follow the link for" +
-			"how-to: https://github.com/tendermint/starport/blob/develop/docs/configure/index.md")
-)
+// ErrCouldntLocateConfig returned when config.yml cannot be found in the source code.
+var ErrCouldntLocateConfig = errors.New(
+	"could not locate a config.yml in your chain. please follow the link for" +
+		"how-to: https://github.com/tendermint/starport/blob/develop/docs/configure/index.md")
 
 // DefaultConf holds default configuration.
 var DefaultConf = Config{
@@ -263,5 +261,5 @@ func CreateConfigDir() error {
 		return err
 	}
 
-	return os.MkdirAll(confPath, 0755)
+	return os.MkdirAll(confPath, 0o755)
 }

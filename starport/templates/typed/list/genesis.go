@@ -1,14 +1,20 @@
 package list
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
+	"github.com/emicklei/proto"
 	"github.com/gobuffalo/genny"
 	"github.com/tendermint/starport/starport/pkg/placeholder"
-	"github.com/tendermint/starport/starport/templates/module"
+	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/templates/typed"
 )
+
+type genesisMutatorFn func(*dst.File, *typed.Options) (*dst.File, error)
 
 func genesisModify(replacer placeholder.Replacer, opts *typed.Options, g *genny.Generator) {
 	g.RunFn(genesisProtoModify(replacer, opts))
@@ -21,45 +27,69 @@ func genesisModify(replacer placeholder.Replacer, opts *typed.Options, g *genny.
 func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "proto", opts.ModuleName, "genesis.proto")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
 
-		templateProtoImport := `import "%[2]v/%[3]v.proto";
-%[1]v`
-		replacementProtoImport := fmt.Sprintf(
-			templateProtoImport,
-			typed.PlaceholderGenesisProtoImport,
-			opts.ModuleName,
-			opts.TypeName.Snake,
-		)
-		content := replacer.Replace(f.String(), typed.PlaceholderGenesisProtoImport, replacementProtoImport)
+		tree, err := protocode.Parse(file, path)
+		if err != nil {
+			return fmt.Errorf("proto filaure: %w", err)
+		}
 
+		tree, err = protocode.AppendImportf(tree, "%s/%s.proto", opts.ModuleName, opts.TypeName.Snake)
+		if err != nil {
+			return err
+		}
+
+		// TODO: Add GogoProtoImport path to *front* of imports
 		// Add gogo.proto
-		replacementGogoImport := typed.EnsureGogoProtoImported(path, typed.PlaceholderGenesisProtoImport)
-		content = replacer.Replace(content, typed.PlaceholderGenesisProtoImport, replacementGogoImport)
+		// replacementGogoImport := typed.EnsureGogoProtoImported(path, typed.PlaceholderGenesisProtoImport)
+		// content = replacer.Replace(content, typed.PlaceholderGenesisProtoImport, replacementGogoImport)
 
-		// Parse proto file to determine the field numbers
-		highestNumber, err := typed.GenesisStateHighestFieldNumber(path)
+		message, err := protocode.FindMessage(tree, "GenesisState")
 		if err != nil {
-			return err
+			return nil
 		}
 
-		templateProtoState := `repeated %[2]v %[3]vList = %[4]v [(gogoproto.nullable) = false];
-  uint64 %[3]vCount = %[5]v;
-  %[1]v`
-		replacementProtoState := fmt.Sprintf(
-			templateProtoState,
-			typed.PlaceholderGenesisProtoState,
-			opts.TypeName.UpperCamel,
-			opts.TypeName.LowerCamel,
-			highestNumber+1,
-			highestNumber+2,
-		)
-		content = replacer.Replace(content, typed.PlaceholderGenesisProtoState, replacementProtoState)
+		// determine highest field number
+		var seq int
+		for _, item := range message.Elements {
+			if field, ok := item.(*proto.NormalField); ok {
+				seq = field.Sequence
+			}
+			fmt.Printf("%[1]T with %#[1]v\n", item)
+		}
+		seq++
+		message.Elements = append(message.Elements,
+			&proto.NormalField{
+				Field: &proto.Field{
+					Name:     fmt.Sprintf("%sList", opts.TypeName.LowerCamel),
+					Type:     opts.TypeName.UpperCamel,
+					Sequence: seq,
+					Options: []*proto.Option{
+						{
+							Name:     "(gogoproto.nullable)",
+							Constant: proto.Literal{Source: "false"},
+						},
+					},
+				},
+				Repeated: true,
+			},
+			&proto.NormalField{
+				Field: &proto.Field{
+					Name:     fmt.Sprintf("%sCount", opts.TypeName.LowerCamel),
+					Type:     "uint64",
+					Sequence: seq + 1,
+				},
+			})
 
-		newFile := genny.NewFileS(path, content)
+		buffer := &bytes.Buffer{}
+		if err = protocode.Fprint(buffer, tree); err != nil {
+			return nil
+		}
+
+		newFile := genny.NewFileS(path, buffer.String())
 		return r.File(newFile)
 	}
 }
@@ -67,86 +97,75 @@ func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genn
 func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/genesis.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
+		if err != nil {
+			return err
+		}
+		tree, err := decorator.Parse(file.String())
+		if err != nil {
+			return err
+		}
+		tree, err = genesisTypesInsertDefaultGenesisList(tree, opts)
+		if err != nil {
+			return fmt.Errorf("Modifying '%s' errored with %w", path, err)
+		}
+		tree, err = genesisTypesInsertValidateCheck(tree, opts)
+		if err != nil {
+			return err
+		}
+		tree, err = typed.MutateImport(tree, "fmt")
 		if err != nil {
 			return err
 		}
 
-		content := typed.PatchGenesisTypeImport(replacer, f.String())
+		buffer := &bytes.Buffer{}
+		if err = decorator.Fprint(buffer, tree); err != nil {
+			return err
+		}
 
-		templateTypesImport := `"fmt"`
-		content = replacer.ReplaceOnce(content, typed.PlaceholderGenesisTypesImport, templateTypesImport)
-
-		templateTypesDefault := `%[2]vList: []%[2]v{},
-%[1]v`
-		replacementTypesDefault := fmt.Sprintf(
-			templateTypesDefault,
-			typed.PlaceholderGenesisTypesDefault,
-			opts.TypeName.UpperCamel,
-		)
-		content = replacer.Replace(content, typed.PlaceholderGenesisTypesDefault, replacementTypesDefault)
-
-		templateTypesValidate := `// Check for duplicated ID in %[2]v
-%[2]vIdMap := make(map[uint64]bool)
-%[2]vCount := gs.Get%[3]vCount()
-for _, elem := range gs.%[3]vList {
-	if _, ok := %[2]vIdMap[elem.Id]; ok {
-		return fmt.Errorf("duplicated id for %[2]v")
-	}
-	if elem.Id >= %[2]vCount {
-		return fmt.Errorf("%[2]v id should be lower or equal than the last id")
-	}
-	%[2]vIdMap[elem.Id] = true
-}
-%[1]v`
-		replacementTypesValidate := fmt.Sprintf(
-			templateTypesValidate,
-			typed.PlaceholderGenesisTypesValidate,
-			opts.TypeName.LowerCamel,
-			opts.TypeName.UpperCamel,
-		)
-		content = replacer.Replace(content, typed.PlaceholderGenesisTypesValidate, replacementTypesValidate)
-
-		newFile := genny.NewFileS(path, content)
+		newFile := genny.NewFileS(path, buffer.String())
 		return r.File(newFile)
 	}
+}
+
+func genesisMutateTree(tree *dst.File, opts *typed.Options, mutators ...genesisMutatorFn) (*dst.File, error) {
+	var err error
+	for _, mutator := range mutators {
+		tree, err = mutator(tree, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return tree, nil
 }
 
 func genesisModuleModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "genesis.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
+		if err != nil {
+			return err
+		}
+		tree, err := decorator.Parse(file.String())
+		if err != nil {
+			return err
+		}
+		tree, err = genesisMutateTree(
+			tree,
+			opts,
+			genesisModuleInsertInit,
+			genesisModuleInsertExport,
+		)
 		if err != nil {
 			return err
 		}
 
-		templateModuleInit := `// Set all the %[2]v
-for _, elem := range genState.%[3]vList {
-	k.Set%[3]v(ctx, elem)
-}
+		buffer := &bytes.Buffer{}
+		if err = decorator.Fprint(buffer, tree); err != nil {
+			return err
+		}
 
-// Set %[2]v count
-k.Set%[3]vCount(ctx, genState.%[3]vCount)
-%[1]v`
-		replacementModuleInit := fmt.Sprintf(
-			templateModuleInit,
-			typed.PlaceholderGenesisModuleInit,
-			opts.TypeName.LowerCamel,
-			opts.TypeName.UpperCamel,
-		)
-		content := replacer.Replace(f.String(), typed.PlaceholderGenesisModuleInit, replacementModuleInit)
-
-		templateModuleExport := `genesis.%[2]vList = k.GetAll%[2]v(ctx)
-genesis.%[2]vCount = k.Get%[2]vCount(ctx)
-%[1]v`
-		replacementModuleExport := fmt.Sprintf(
-			templateModuleExport,
-			typed.PlaceholderGenesisModuleExport,
-			opts.TypeName.UpperCamel,
-		)
-		content = replacer.Replace(content, typed.PlaceholderGenesisModuleExport, replacementModuleExport)
-
-		newFile := genny.NewFileS(path, content)
+		newFile := genny.NewFileS(path, buffer.String())
 		return r.File(newFile)
 	}
 }
@@ -154,39 +173,31 @@ genesis.%[2]vCount = k.Get%[2]vCount(ctx)
 func genesisTestsModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "genesis_test.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
+		if err != nil {
+			return err
+		}
+		tree, err := decorator.Parse(file.String())
+		if err != nil {
+			return err
+		}
+		tree, err = genesisTestsInsertList(tree, opts)
+		if err != nil {
+			return err
+		}
+		tree, err = genesisTestsInsertComparison(tree, opts)
 		if err != nil {
 			return err
 		}
 
-		templateState := `%[2]vList: []types.%[2]v{
-		{
-			Id: 0,
-		},
-		{
-			Id: 1,
-		},
-	},
-	%[2]vCount: 2,
-	%[1]v`
-		replacementValid := fmt.Sprintf(
-			templateState,
-			module.PlaceholderGenesisTestState,
-			opts.TypeName.UpperCamel,
-		)
-		content := replacer.Replace(f.String(), module.PlaceholderGenesisTestState, replacementValid)
+		buffer := &bytes.Buffer{}
+		if err = decorator.Fprint(buffer, tree); err != nil {
+			return err
+		}
 
-		templateAssert := `require.ElementsMatch(t, genesisState.%[2]vList, got.%[2]vList)
-require.Equal(t, genesisState.%[2]vCount, got.%[2]vCount)
-%[1]v`
-		replacementTests := fmt.Sprintf(
-			templateAssert,
-			module.PlaceholderGenesisTestAssert,
-			opts.TypeName.UpperCamel,
-		)
-		content = replacer.Replace(content, module.PlaceholderGenesisTestAssert, replacementTests)
+		fmt.Printf("\n%s\n", buffer.String())
 
-		newFile := genny.NewFileS(path, content)
+		newFile := genny.NewFileS(path, buffer.String())
 		return r.File(newFile)
 	}
 }
@@ -194,64 +205,35 @@ require.Equal(t, genesisState.%[2]vCount, got.%[2]vCount)
 func genesisTypesTestsModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/genesis_test.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
+		if err != nil {
+			return err
+		}
+		tree, err := decorator.Parse(file.String())
 		if err != nil {
 			return err
 		}
 
-		templateValid := `%[2]vList: []types.%[2]v{
-	{
-		Id: 0,
-	},
-	{
-		Id: 1,
-	},
-},
-%[2]vCount: 2,
-%[1]v`
-		replacementValid := fmt.Sprintf(
-			templateValid,
-			module.PlaceholderTypesGenesisValidField,
-			opts.TypeName.UpperCamel,
-		)
-		content := replacer.Replace(f.String(), module.PlaceholderTypesGenesisValidField, replacementValid)
+		tree, err = genesisTestsInsertValidGenesisState(tree, opts)
+		if err != nil {
+			return err
+		}
 
-		templateTests := `{
-	desc:     "duplicated %[2]v",
-	genState: &types.GenesisState{
-		%[3]vList: []types.%[3]v{
-			{
-				Id: 0,
-			},
-			{
-				Id: 0,
-			},
-		},
-	},
-	valid:    false,
-},
-{
-	desc:     "invalid %[2]v count",
-	genState: &types.GenesisState{
-		%[3]vList: []types.%[3]v{
-			{
-				Id: 1,
-			},
-		},
-		%[3]vCount: 0,
-	},
-	valid:    false,
-},
-%[1]v`
-		replacementTests := fmt.Sprintf(
-			templateTests,
-			module.PlaceholderTypesGenesisTestcase,
-			opts.TypeName.LowerCamel,
-			opts.TypeName.UpperCamel,
-		)
-		content = replacer.Replace(content, module.PlaceholderTypesGenesisTestcase, replacementTests)
+		tree, err = genesisTestsInsertDuplicatedState(tree, opts)
+		if err != nil {
+			return err
+		}
 
-		newFile := genny.NewFileS(path, content)
+		tree, err = genesisTestsInsertInvalidCount(tree, opts)
+
+		buffer := &bytes.Buffer{}
+		if err = decorator.Fprint(buffer, tree); err != nil {
+			return err
+		}
+
+		fmt.Printf("\n%s\n", buffer.String())
+
+		newFile := genny.NewFileS(path, buffer.String())
 		return r.File(newFile)
 	}
 }

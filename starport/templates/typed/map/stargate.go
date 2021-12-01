@@ -1,11 +1,13 @@
 package maptype
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/dave/dst/decorator"
 	"github.com/gobuffalo/genny"
 	"github.com/tendermint/starport/starport/pkg/placeholder"
 	"github.com/tendermint/starport/starport/pkg/xgenny"
@@ -285,15 +287,23 @@ func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genn
 func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/genesis.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
+		if err != nil {
+			return err
+		}
+		tree, err := decorator.Parse(file.String())
 		if err != nil {
 			return err
 		}
 
-		content := typed.PatchGenesisTypeImport(replacer, f.String())
+		tree, err = typed.MutateImport(tree, "fmt")
 
-		templateTypesImport := `"fmt"`
-		content = replacer.ReplaceOnce(content, typed.PlaceholderGenesisTypesImport, templateTypesImport)
+		buffer := &bytes.Buffer{}
+		if err = decorator.Fprint(buffer, tree); err != nil {
+			return err
+		}
+
+		content := buffer.String()
 
 		templateTypesDefault := `%[2]vList: []%[2]v{},
 %[1]v`

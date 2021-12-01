@@ -25,15 +25,15 @@ func TestHasDirChecksumChanged(t *testing.T) {
 
 	// Create directory tree
 	dir1 := filepath.Join(tempDir, "foo1")
-	err := os.MkdirAll(dir1, 0700)
+	err := os.MkdirAll(dir1, 0o700)
 	require.NoError(t, err)
 	defer os.RemoveAll(dir1)
 	dir2 := filepath.Join(tempDir, "foo2")
-	err = os.MkdirAll(dir2, 0700)
+	err = os.MkdirAll(dir2, 0o700)
 	require.NoError(t, err)
 	defer os.RemoveAll(dir2)
 	dir3 := filepath.Join(tempDir, "foo3")
-	err = os.MkdirAll(dir3, 0700)
+	err = os.MkdirAll(dir3, 0o700)
 	require.NoError(t, err)
 	defer os.RemoveAll(dir3)
 
@@ -45,17 +45,17 @@ func TestHasDirChecksumChanged(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create files
-	err = os.WriteFile(filepath.Join(dir1, "foo"), []byte("some bytes"), 0644)
+	err = os.WriteFile(filepath.Join(dir1, "foo"), []byte("some bytes"), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir11, "foo"), randomBytes(15), 0644)
+	err = os.WriteFile(filepath.Join(dir11, "foo"), randomBytes(15), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir12, "foo"), randomBytes(20), 0644)
+	err = os.WriteFile(filepath.Join(dir12, "foo"), randomBytes(20), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir21, "foo"), randomBytes(20), 0644)
+	err = os.WriteFile(filepath.Join(dir21, "foo"), randomBytes(20), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir3, "foo1"), randomBytes(10), 0644)
+	err = os.WriteFile(filepath.Join(dir3, "foo1"), randomBytes(10), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir3, "foo2"), randomBytes(10), 0644)
+	err = os.WriteFile(filepath.Join(dir3, "foo2"), randomBytes(10), 0o644)
 	require.NoError(t, err)
 
 	// Check checksum
@@ -68,7 +68,7 @@ func TestHasDirChecksumChanged(t *testing.T) {
 	// Checksum remains the same if a file is deleted and recreated with the same content
 	err = os.Remove(filepath.Join(dir1, "foo"))
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir1, "foo"), []byte("some bytes"), 0644)
+	err = os.WriteFile(filepath.Join(dir1, "foo"), []byte("some bytes"), 0o644)
 	require.NoError(t, err)
 	tmpChecksum, err := checksumFromPaths("", paths)
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestHasDirChecksumChanged(t *testing.T) {
 	require.NotEqual(t, checksum, tmpChecksum)
 
 	// Checksum changes if a file is modified
-	err = os.WriteFile(filepath.Join(dir3, "foo1"), randomBytes(10), 0644)
+	err = os.WriteFile(filepath.Join(dir3, "foo1"), randomBytes(10), 0o644)
 	require.NoError(t, err)
 	newChecksum, err := checksumFromPaths("", paths)
 	require.NoError(t, err)
@@ -100,11 +100,11 @@ func TestHasDirChecksumChanged(t *testing.T) {
 
 	// Error if no files in the specified dirs
 	empty1 := filepath.Join(tempDir, "empty1")
-	err = os.MkdirAll(empty1, 0700)
+	err = os.MkdirAll(empty1, 0o700)
 	require.NoError(t, err)
 	defer os.RemoveAll(empty1)
 	empty2 := filepath.Join(tempDir, "empty2")
-	err = os.MkdirAll(empty2, 0700)
+	err = os.MkdirAll(empty2, 0o700)
 	require.NoError(t, err)
 	defer os.RemoveAll(empty2)
 	_, err = checksumFromPaths("", []string{empty1, empty2})
@@ -144,7 +144,7 @@ func TestHasDirChecksumChanged(t *testing.T) {
 	require.True(t, changed)
 
 	// Return true if it has been changed
-	err = os.WriteFile(filepath.Join(dir21, "bar"), randomBytes(20), 0644)
+	err = os.WriteFile(filepath.Join(dir21, "bar"), randomBytes(20), 0o644)
 	require.NoError(t, err)
 	changed, err = HasDirChecksumChanged("", paths, saveDir, ChecksumFile)
 	require.NoError(t, err)

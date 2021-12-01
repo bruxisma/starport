@@ -67,7 +67,7 @@ func (p *stargatePlugin) appTOML(homePath string, conf chainconfig.Config) error
 	config.Set("api.address", xurl.TCP(conf.Host.API))
 	config.Set("grpc.address", conf.Host.GRPC)
 	config.Set("grpc-web.address", conf.Host.GRPCWeb)
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (p *stargatePlugin) configTOML(homePath string, conf chainconfig.Config) er
 	config.Set("rpc.laddr", xurl.TCP(conf.Host.RPC))
 	config.Set("p2p.laddr", xurl.TCP(conf.Host.P2P))
 	config.Set("rpc.pprof_laddr", conf.Host.Prof)
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (p *stargatePlugin) clientTOML(homePath string) error {
 	}
 	config.Set("keyring-backend", "test")
 	config.Set("broadcast-mode", "block")
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}

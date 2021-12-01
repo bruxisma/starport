@@ -10,12 +10,10 @@ import (
 	"github.com/tendermint/starport/starport/pkg/protoc"
 )
 
-var (
-	goOuts = []string{
-		"--gocosmos_out=plugins=interfacetype+grpc,Mgoogle/protobuf/any.proto=github.com/cosmos/cosmos-sdk/codec/types:.",
-		"--grpc-gateway_out=logtostderr=true:.",
-	}
-)
+var goOuts = []string{
+	"--gocosmos_out=plugins=interfacetype+grpc,Mgoogle/protobuf/any.proto=github.com/cosmos/cosmos-sdk/codec/types:.",
+	"--grpc-gateway_out=logtostderr=true:.",
+}
 
 func (g *generator) generateGo() error {
 	includePaths, err := g.resolveInclude(g.appPath)

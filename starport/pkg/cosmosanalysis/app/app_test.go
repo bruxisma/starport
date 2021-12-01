@@ -58,7 +58,7 @@ func TestCheckKeeper(t *testing.T) {
 
 	// Test with a source file containing an app
 	tmpFile := filepath.Join(tmpDir, "app.go")
-	err = os.WriteFile(tmpFile, AppFile, 0644)
+	err = os.WriteFile(tmpFile, AppFile, 0o644)
 	require.NoError(t, err)
 
 	err = app.CheckKeeper(tmpDir, "FooKeeper")
@@ -71,7 +71,7 @@ func TestCheckKeeper(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(tmpDir) })
 	tmpFileNoApp := filepath.Join(tmpDirNoApp, "app.go")
-	err = os.WriteFile(tmpFileNoApp, NoAppFile, 0644)
+	err = os.WriteFile(tmpFileNoApp, NoAppFile, 0o644)
 	require.NoError(t, err)
 	err = app.CheckKeeper(tmpDirNoApp, "FooKeeper")
 	require.Error(t, err)
@@ -81,7 +81,7 @@ func TestCheckKeeper(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(tmpDir) })
 	tmpFileTwoApp := filepath.Join(tmpDirTwoApp, "app.go")
-	err = os.WriteFile(tmpFileTwoApp, TwoAppFile, 0644)
+	err = os.WriteFile(tmpFileTwoApp, TwoAppFile, 0o644)
 	require.NoError(t, err)
 	err = app.CheckKeeper(tmpDirTwoApp, "FooKeeper")
 	require.Error(t, err)

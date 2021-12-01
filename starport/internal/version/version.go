@@ -17,8 +17,10 @@ import (
 	"github.com/tendermint/starport/starport/pkg/xexec"
 )
 
-const versionDev = "development"
-const prefix = "v"
+const (
+	versionDev = "development"
+	prefix     = "v"
+)
 
 var (
 	// Version is the semantic version of Starport.
@@ -41,7 +43,6 @@ func CheckNext(ctx context.Context) (isAvailable bool, version string, err error
 		NewClient(nil).
 		Repositories.
 		GetLatestRelease(ctx, "tendermint", "starport")
-
 	if err != nil {
 		return false, "", err
 	}

@@ -46,7 +46,7 @@ type Cmd struct {
 
 // Command sets the protoc binary up and returns the command needed to execute c.
 func Command() (command Cmd, cleanup func(), err error) {
-	path, cleanupProto, err := localfs.SaveBytesTemp(data.Binary(), "protoc", 0755)
+	path, cleanupProto, err := localfs.SaveBytesTemp(data.Binary(), "protoc", 0o755)
 	if err != nil {
 		return Cmd{}, nil, err
 	}

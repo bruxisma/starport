@@ -10,14 +10,12 @@ import (
 	"golang.org/x/mod/module"
 )
 
-var (
-	globalInclude = xfilepath.List(
-		// this one should be already known by naked protoc execution, but adding it anyway to making sure.
-		xfilepath.JoinFromHome(xfilepath.Path("local/include")),
-		// this one is the suggested installation path for placing default proto by
-		// https://grpc.io/docs/protoc-installation/.
-		xfilepath.JoinFromHome(xfilepath.Path(".local/include")),
-	)
+var globalInclude = xfilepath.List(
+	// this one should be already known by naked protoc execution, but adding it anyway to making sure.
+	xfilepath.JoinFromHome(xfilepath.Path("local/include")),
+	// this one is the suggested installation path for placing default proto by
+	// https://grpc.io/docs/protoc-installation/.
+	xfilepath.JoinFromHome(xfilepath.Path(".local/include")),
 )
 
 // Module represents a go module that hosts dependency proto paths.

@@ -3,9 +3,10 @@ package multiformatname_test
 import (
 	"errors"
 	"fmt"
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/starport/starport/pkg/multiformatname"
-	"testing"
 )
 
 func TestNewMultiFormatName(t *testing.T) {

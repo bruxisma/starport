@@ -20,9 +20,7 @@ const (
 	OrderingOrdered   = "ORDER_ORDERED"
 )
 
-var (
-	errEndpointExistsWithDifferentChainID = errors.New("rpc endpoint already exists with a different chain id")
-)
+var errEndpointExistsWithDifferentChainID = errors.New("rpc endpoint already exists with a different chain id")
 
 // Chain represents a chain in relayer.
 type Chain struct {

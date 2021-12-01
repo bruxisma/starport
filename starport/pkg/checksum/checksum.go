@@ -37,5 +37,5 @@ func Sum(dirPath, outPath string) error {
 		}
 	}
 
-	return os.WriteFile(outPath, b.Bytes(), 0666)
+	return os.WriteFile(outPath, b.Bytes(), 0o666)
 }

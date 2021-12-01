@@ -139,5 +139,4 @@ func Generate(ctx context.Context, appPath, protoDir string, options ...Option) 
 	}
 
 	return nil
-
 }

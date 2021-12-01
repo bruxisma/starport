@@ -20,13 +20,13 @@ func SaveDirChecksum(workdir string, paths []string, checksumSavePath string, ch
 	}
 
 	// create directory if needed
-	if err := os.MkdirAll(checksumSavePath, 0700); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(checksumSavePath, 0o700); err != nil && !os.IsExist(err) {
 		return err
 	}
 
 	// save checksum
 	checksumFilePath := filepath.Join(checksumSavePath, checksumName)
-	return os.WriteFile(checksumFilePath, checksum, 0644)
+	return os.WriteFile(checksumFilePath, checksum, 0o644)
 }
 
 // HasDirChecksumChanged computes the md5 checksum of the provided paths (directories or files)
@@ -35,7 +35,7 @@ func SaveDirChecksum(workdir string, paths []string, checksumSavePath string, ch
 // paths are relative to workdir, if workdir is empty string paths are absolute
 func HasDirChecksumChanged(workdir string, paths []string, checksumSavePath string, checksumName string) (bool, error) {
 	// create directory if needed
-	if err := os.MkdirAll(checksumSavePath, 0700); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(checksumSavePath, 0o700); err != nil && !os.IsExist(err) {
 		return false, err
 	}
 	checksumFilePath := filepath.Join(checksumSavePath, checksumName)
@@ -113,7 +113,6 @@ func checksumFromPaths(workdir string, paths []string) ([]byte, error) {
 
 			return nil
 		})
-
 		if err != nil {
 			return []byte{}, err
 		}

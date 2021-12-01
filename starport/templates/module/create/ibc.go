@@ -1,10 +1,12 @@
 package modulecreate
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/dave/dst/decorator"
 	"github.com/gobuffalo/genny"
 	"github.com/gobuffalo/plush"
 	"github.com/gobuffalo/plushgen"
@@ -86,16 +88,27 @@ if !k.IsBound(ctx, genState.PortId) {
 func genesisTypesModify(replacer placeholder.Replacer, opts *CreateOptions) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/genesis.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
+		if err != nil {
+			return err
+		}
+		tree, err := decorator.Parse(file.String())
+		if err != nil {
+			return err
+		}
+		tree, err = typed.MutateImport(tree, "host", "github.com/cosmos/ibc-go/modules/core/24-host")
 		if err != nil {
 			return err
 		}
 
+		buffer := &bytes.Buffer{}
+		if err = decorator.Fprint(buffer, tree); err != nil {
+			return err
+		}
+
+		content := buffer.String()
+
 		// Import
-		templateImport := `host "github.com/cosmos/ibc-go/modules/core/24-host"
-%s`
-		replacementImport := fmt.Sprintf(templateImport, typed.PlaceholderGenesisTypesImport)
-		content := replacer.Replace(f.String(), typed.PlaceholderGenesisTypesImport, replacementImport)
 
 		// Default genesis
 		templateDefault := `PortId: PortID,

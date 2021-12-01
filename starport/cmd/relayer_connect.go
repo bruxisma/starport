@@ -61,7 +61,6 @@ func relayerConnectHandler(cmd *cobra.Command, args []string) (err error) {
 	if len(ids) == 0 {
 		for _, path := range all {
 			use = append(use, path.ID)
-
 		}
 	} else {
 		for _, id := range ids {
@@ -70,7 +69,6 @@ func relayerConnectHandler(cmd *cobra.Command, args []string) (err error) {
 					use = append(use, path.ID)
 					break
 				}
-
 			}
 		}
 	}

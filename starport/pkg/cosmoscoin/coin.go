@@ -8,9 +8,7 @@ import (
 	"strconv"
 )
 
-var (
-	errInvalidCoin = errors.New("coin is invalid")
-)
+var errInvalidCoin = errors.New("coin is invalid")
 
 var (
 	reDnmString = `[a-zA-Z][a-zA-Z0-9/]{2,127}`

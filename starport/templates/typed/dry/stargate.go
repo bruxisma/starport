@@ -8,10 +8,8 @@ import (
 	"github.com/tendermint/starport/starport/templates/typed"
 )
 
-var (
-	//go:embed stargate/component/* stargate/component/**/*
-	fsStargateComponent embed.FS
-)
+//go:embed stargate/component/* stargate/component/**/*
+var fsStargateComponent embed.FS
 
 // NewStargate returns the generator to scaffold a basic type in a Stargate module.
 func NewStargate(opts *typed.Options) (*genny.Generator, error) {

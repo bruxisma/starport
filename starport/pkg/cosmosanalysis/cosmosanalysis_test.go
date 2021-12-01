@@ -43,10 +43,10 @@ func TestFindImplementation(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(tmpDir) })
 
 	f1 := filepath.Join(tmpDir, "1.go")
-	err = os.WriteFile(f1, file1, 0644)
+	err = os.WriteFile(f1, file1, 0o644)
 	require.NoError(t, err)
 	f2 := filepath.Join(tmpDir, "2.go")
-	err = os.WriteFile(f2, file2, 0644)
+	err = os.WriteFile(f2, file2, 0o644)
 	require.NoError(t, err)
 
 	// find in dir

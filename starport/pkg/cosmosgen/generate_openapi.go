@@ -93,7 +93,7 @@ func generateOpenAPISpec(g *generator) error {
 
 	// ensure out dir exists.
 	outDir := filepath.Dir(out)
-	if err := os.MkdirAll(outDir, 0766); err != nil {
+	if err := os.MkdirAll(outDir, 0o766); err != nil {
 		return err
 	}
 
