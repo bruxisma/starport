@@ -6,6 +6,12 @@ import (
 	"github.com/dave/dst"
 )
 
+// Block is used when 'scoped' callbacks are required by users to group
+// statements together (e.g., inside of an if statement block or a for range
+// loop.
+//
+// NOTE: Not all possible statements and constructs are available on Blocks at
+// the moment. Only the ones currently required
 type Block struct {
 	inner *dst.BlockStmt
 }
