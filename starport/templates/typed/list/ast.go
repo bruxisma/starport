@@ -7,7 +7,6 @@ import (
 
 	"github.com/dave/dst"
 	"github.com/tendermint/starport/starport/pkg/gocode"
-	"github.com/tendermint/starport/starport/templates/ast"
 	"github.com/tendermint/starport/starport/templates/typed"
 )
 
@@ -18,7 +17,7 @@ var (
 
 func genesisTypesInsertDefaultGenesisList(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	// Find the DefaultGenesis function in the tree
-	fn, err := ast.FindFunction(tree, "DefaultGenesis")
+	fn, err := gocode.FindFunction(tree, "DefaultGenesis")
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +30,7 @@ func genesisTypesInsertDefaultGenesisList(tree *dst.File, opts *typed.Options) (
 }
 
 func genesisTypesInsertValidateCheck(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "Validate")
+	fn, err := gocode.FindFunction(tree, "Validate")
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +45,7 @@ func genesisTypesInsertValidateCheck(tree *dst.File, opts *typed.Options) (*dst.
 }
 
 func genesisModuleInsertInit(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "InitGenesis")
+	fn, err := gocode.FindFunction(tree, "InitGenesis")
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +60,7 @@ func genesisModuleInsertInit(tree *dst.File, opts *typed.Options) (*dst.File, er
 }
 
 func genesisModuleInsertExport(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "ExportGenesis")
+	fn, err := gocode.FindFunction(tree, "ExportGenesis")
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +79,7 @@ func genesisModuleInsertExport(tree *dst.File, opts *typed.Options) (*dst.File, 
 }
 
 func genesisTestsInsertList(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "TestGenesis")
+	fn, err := gocode.FindFunction(tree, "TestGenesis")
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +93,7 @@ func genesisTestsInsertList(tree *dst.File, opts *typed.Options) (*dst.File, err
 }
 
 func genesisTestsInsertComparison(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "TestGenesis")
+	fn, err := gocode.FindFunction(tree, "TestGenesis")
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +108,7 @@ func genesisTestsInsertComparison(tree *dst.File, opts *typed.Options) (*dst.Fil
 }
 
 func genesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "TestGenesisState_Validate")
+	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +156,7 @@ func genesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*
 }
 
 func genesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "TestGenesisState_Validate")
+	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +177,7 @@ func genesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*ds
 }
 
 func genesisTestsInsertInvalidCount(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := ast.FindFunction(tree, "TestGenesisState_Validate")
+	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
 		return nil, err
 	}

@@ -27,6 +27,7 @@ type MakeMap struct {
 	inner *dst.MapType
 }
 
+// BasicString returns a basic string literal
 func BasicString(value string) *dst.BasicLit {
 	return &dst.BasicLit{
 		Kind:  token.STRING,
@@ -34,6 +35,7 @@ func BasicString(value string) *dst.BasicLit {
 	}
 }
 
+// BasicInt returns a basic integer literal
 func BasicInt(value int64) *dst.BasicLit {
 	return &dst.BasicLit{
 		Kind:  token.INT,
@@ -41,11 +43,14 @@ func BasicInt(value int64) *dst.BasicLit {
 	}
 }
 
+// MakeSliceOf returns a CallExpr equivalent to `make([]name.fields)`
 func MakeSliceOf(name string, fields ...string) *dst.CallExpr {
 	arrayType := &dst.ArrayType{Elt: Identifier(name, fields...)}
 	return Call("make").WithParameters(arrayType).Node()
 }
 
+// MakeMapOf returns a node builder that is used to construct a very basic call
+// to `make(map[T]U)`
 func MakeMapOf(name string, fields ...string) *MakeMap {
 	return &MakeMap{
 		inner: &dst.MapType{
@@ -54,6 +59,9 @@ func MakeMapOf(name string, fields ...string) *MakeMap {
 	}
 }
 
+// WithIndexOf returns a CallExpr where the CallExpr contains the provided
+// values as an identifier or selector expression such that the CallExpr
+// provided is equivalent to `make(map[T]U)`
 func (mm *MakeMap) WithIndexOf(name string, fields ...string) *dst.CallExpr {
 	mm.inner.Value = Identifier(name, fields...)
 	return Call("make").WithParameters(mm.inner).Node()
@@ -70,14 +78,19 @@ func Identifier(name string, fields ...string) dst.Expr {
 	return selector(name, fields[0], fields[1:]...)
 }
 
+// Name returns a dst.Ident constructed from the formatted string.
+//
+// This function is mostly provided as a convenience.
 func Name(format string, args ...interface{}) *dst.Ident {
 	return dst.NewIdent(fmt.Sprintf(format, args...))
 }
 
+// False returns the `false` identifier
 func False() *dst.Ident {
 	return dst.NewIdent("false")
 }
 
+// True returns the `true` identifier
 func True() *dst.Ident {
 	return dst.NewIdent("true")
 }
