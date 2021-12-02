@@ -5,16 +5,13 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/dave/dst"
-	"github.com/dave/dst/decorator"
 	"github.com/emicklei/proto"
 	"github.com/gobuffalo/genny"
+	"github.com/tendermint/starport/starport/pkg/gocode"
 	"github.com/tendermint/starport/starport/pkg/placeholder"
 	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/templates/typed"
 )
-
-type genesisMutatorFn func(*dst.File, *typed.Options) (*dst.File, error)
 
 func genesisModify(replacer placeholder.Replacer, opts *typed.Options, g *genny.Generator) {
 	g.RunFn(genesisProtoModify(replacer, opts))
@@ -101,42 +98,26 @@ func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genn
 		if err != nil {
 			return err
 		}
-		tree, err := decorator.Parse(file.String())
-		if err != nil {
-			return err
+		mutations := mutators{
+			mutateTypesDefaultGenesisReturnValue,
+			mutateTypesValidateStatements,
 		}
-		tree, err = genesisTypesInsertDefaultGenesisList(tree, opts)
+		tree, err := mutations.Apply(file, opts)
 		if err != nil {
-			return fmt.Errorf("Modifying '%s' errored with %w", path, err)
+			return reportModifyError(path, err)
 		}
-		tree, err = genesisTypesInsertValidateCheck(tree, opts)
-		if err != nil {
-			return err
-		}
-		tree, err = typed.MutateImport(tree, "fmt")
-		if err != nil {
-			return err
+		if tree, err = typed.MutateImport(tree, "fmt"); err != nil {
+			return reportModifyError(path, err)
 		}
 
-		buffer := &bytes.Buffer{}
-		if err = decorator.Fprint(buffer, tree); err != nil {
-			return err
+		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return reportModifyError(path, err)
 		}
 
-		newFile := genny.NewFileS(path, buffer.String())
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
-}
-
-func genesisMutateTree(tree *dst.File, opts *typed.Options, mutators ...genesisMutatorFn) (*dst.File, error) {
-	var err error
-	for _, mutator := range mutators {
-		tree, err = mutator(tree, opts)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return tree, nil
 }
 
 func genesisModuleModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
@@ -146,26 +127,20 @@ func genesisModuleModify(replacer placeholder.Replacer, opts *typed.Options) gen
 		if err != nil {
 			return err
 		}
-		tree, err := decorator.Parse(file.String())
-		if err != nil {
-			return err
-		}
-		tree, err = genesisMutateTree(
-			tree,
-			opts,
+		mutations := mutators{
 			genesisModuleInsertInit,
 			genesisModuleInsertExport,
-		)
+		}
+		tree, err := mutations.Apply(file, opts)
 		if err != nil {
-			return err
+			return reportModifyError(path, err)
+		}
+		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return reportModifyError(path, err)
 		}
 
-		buffer := &bytes.Buffer{}
-		if err = decorator.Fprint(buffer, tree); err != nil {
-			return err
-		}
-
-		newFile := genny.NewFileS(path, buffer.String())
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
@@ -177,27 +152,20 @@ func genesisTestsModify(replacer placeholder.Replacer, opts *typed.Options) genn
 		if err != nil {
 			return err
 		}
-		tree, err := decorator.Parse(file.String())
-		if err != nil {
-			return err
+		mutations := mutators{
+			genesisTestsInsertList,
+			genesisTestsInsertComparison,
 		}
-		tree, err = genesisTestsInsertList(tree, opts)
+		tree, err := mutations.Apply(file, opts)
 		if err != nil {
-			return err
+			return reportModifyError(path, err)
 		}
-		tree, err = genesisTestsInsertComparison(tree, opts)
+		buffer, err := gocode.Write(tree)
 		if err != nil {
-			return err
+			return reportModifyError(path, err)
 		}
 
-		buffer := &bytes.Buffer{}
-		if err = decorator.Fprint(buffer, tree); err != nil {
-			return err
-		}
-
-		fmt.Printf("\n%s\n", buffer.String())
-
-		newFile := genny.NewFileS(path, buffer.String())
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
@@ -209,31 +177,21 @@ func genesisTypesTestsModify(replacer placeholder.Replacer, opts *typed.Options)
 		if err != nil {
 			return err
 		}
-		tree, err := decorator.Parse(file.String())
+		mutations := mutators{
+			genesisTestsInsertValidGenesisState,
+			genesisTestsInsertDuplicatedState,
+			genesisTestsInsertInvalidCount,
+		}
+		tree, err := mutations.Apply(file, opts)
 		if err != nil {
-			return err
+			return reportModifyError(path, err)
 		}
-
-		tree, err = genesisTestsInsertValidGenesisState(tree, opts)
+		buffer, err := gocode.Write(tree)
 		if err != nil {
-			return err
+			return reportModifyError(path, err)
 		}
 
-		tree, err = genesisTestsInsertDuplicatedState(tree, opts)
-		if err != nil {
-			return err
-		}
-
-		tree, err = genesisTestsInsertInvalidCount(tree, opts)
-
-		buffer := &bytes.Buffer{}
-		if err = decorator.Fprint(buffer, tree); err != nil {
-			return err
-		}
-
-		fmt.Printf("\n%s\n", buffer.String())
-
-		newFile := genny.NewFileS(path, buffer.String())
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }

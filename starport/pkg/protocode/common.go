@@ -1,6 +1,7 @@
 package protocode
 
 import (
+	"bytes"
 	"errors"
 	"io"
 
@@ -16,6 +17,14 @@ func Parse(reader io.Reader, filename string) (*File, error) {
 	parser := proto.NewParser(reader)
 	parser.Filename(filename)
 	return parser.Parse()
+}
+
+func Write(tree *File) (io.Reader, error) {
+	buffer := &bytes.Buffer{}
+	if err := Fprint(buffer, tree); err != nil {
+		return nil, err
+	}
+	return buffer, nil
 }
 
 func Fprint(w io.Writer, root *File) error {

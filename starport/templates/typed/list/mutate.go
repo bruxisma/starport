@@ -2,45 +2,81 @@ package list
 
 import (
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 
 	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
 	"github.com/tendermint/starport/starport/pkg/gocode"
 	"github.com/tendermint/starport/starport/templates/typed"
 )
+
+type (
+	mutator  func(*dst.File, *typed.Options) (*dst.File, error)
+	mutators []mutator
+)
+
+func reportModifyError(path string, err error) error {
+	return fmt.Errorf("modifying %q errored with %w", path, err)
+}
+
+// Apply executes each mutator on the provided root AST node and Options value
+func (fns mutators) Apply(source io.Reader, opts *typed.Options) (*dst.File, error) {
+	tree, err := decorator.Parse(source)
+	if err != nil {
+		return nil, err
+	}
+	for _, fn := range fns {
+		if tree, err = fn(tree, opts); err != nil {
+			return nil, err
+		}
+	}
+	return tree, nil
+}
 
 var (
 	structType       = reflect.TypeOf((*dst.StructType)(nil))
 	compositeLitType = reflect.TypeOf((*dst.CompositeLit)(nil))
 )
 
-func genesisTypesInsertDefaultGenesisList(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	// Find the DefaultGenesis function in the tree
+func mutateTypesDefaultGenesisReturnValue(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "DefaultGenesis")
 	if err != nil {
 		return nil, err
 	}
-	literal := fn.Body.
-		List[0].(*dst.ReturnStmt).
-		Results[0].(*dst.UnaryExpr).
-		X.(*dst.CompositeLit)
-	literal.Elts = append(genesisTypesCreateDefaultGenesisList(opts), literal.Elts...)
+	gocode.Apply(fn, func(cursor *gocode.Cursor) bool {
+		var composite *dst.CompositeLit
+		if ret, ok := cursor.Node().(*dst.ReturnStmt); !ok {
+			return true
+		} else if unary, ok := ret.Results[0].(*dst.UnaryExpr); !ok {
+			return true
+		} else if composite, ok = unary.X.(*dst.CompositeLit); !ok {
+			return true
+		}
+		composite.Elts = append(composite.Elts, &dst.KeyValueExpr{
+			Key:   gocode.Name("%sList", opts.TypeName.UpperCamel),
+			Value: gocode.SliceOf(opts.TypeName.UpperCamel).Node(),
+		})
+		return false
+	})
 	return tree, nil
 }
 
-func genesisTypesInsertValidateCheck(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func mutateTypesValidateStatements(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "Validate")
 	if err != nil {
 		return nil, err
 	}
-	statements, err := genesisTypesCreateValidateCheck(opts)
-	if err != nil {
-		return nil, err
-	}
-	idx := len(fn.Body.List) - 1
-	statements = append(statements, fn.Body.List[idx])
-	fn.Body.List = append(fn.Body.List[:idx], statements...)
+	gocode.Apply(fn, func(cursor *gocode.Cursor) bool {
+		if _, ok := cursor.Node().(*dst.ReturnStmt); !ok {
+			return true
+		}
+		for _, stmt := range mutateTypesCreateValidateCheckNodes(opts) {
+			cursor.InsertBefore(stmt)
+		}
+		return false
+	})
 	return tree, nil
 }
 
@@ -116,14 +152,15 @@ func genesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*
 	var state *dst.CompositeLit
 
 	gocode.Apply(fn, func(cursor *gocode.Cursor) bool {
-		kv, ok := cursor.Node().(*dst.KeyValueExpr)
-		if !ok || reflect.TypeOf(cursor.Parent()) != compositeLitType {
+		if reflect.TypeOf(cursor.Parent()) != compositeLitType {
 			return true
-		}
-		if name, ok := gocode.KeyAsIdentifier(kv); !ok || name != "desc" {
+		} else if kv, ok := cursor.Node().(*dst.KeyValueExpr); !ok {
 			return true
-		}
-		if basic, ok := gocode.ValueAsBasicLiteral(kv); !ok || basic.Value != strconv.Quote("valid genesis state") {
+		} else if name, ok := gocode.KeyAsIdentifier(kv); !ok || name != "desc" {
+			return true
+		} else if basic, ok := gocode.ValueAsBasicLiteral(kv); !ok {
+			return true
+		} else if basic.Value != strconv.Quote("valid genesis state") {
 			return true
 		}
 		state = cursor.Parent().(*dst.CompositeLit)
@@ -196,7 +233,9 @@ func genesisTestsInsertInvalidCount(tree *dst.File, opts *typed.Options) (*dst.F
 	return tree, nil
 }
 
-func genesisTypesCreateValidateCheck(opts *typed.Options) ([]dst.Stmt, error) {
+// mutateTypesCreateValidateCheckNodes is a fairly complex set of statements
+// built for inserting into the Validate function
+func mutateTypesCreateValidateCheckNodes(opts *typed.Options) []dst.Stmt {
 	duplicateIdString := fmt.Sprintf("duplicated id for %s", opts.TypeName.LowerCamel)
 	countComparisonString := fmt.Sprintf(
 		"%s id should be lower or equal than the last id",
@@ -224,11 +263,7 @@ func genesisTypesCreateValidateCheck(opts *typed.Options) ([]dst.Stmt, error) {
 			To(gocode.True())
 	}).Done()
 
-	return []dst.Stmt{
-		idMapAssign,
-		countAssign,
-		rangeFor,
-	}, nil
+	return []dst.Stmt{idMapAssign, countAssign, rangeFor}
 }
 
 func genesisModuleCreateInit(opts *typed.Options) ([]dst.Stmt, error) {
@@ -259,17 +294,6 @@ func genesisModuleCreateExport(opts *typed.Options) ([]dst.Stmt, error) {
 			To(gocode.Call("k", fmt.Sprintf("Get%sCount", typename)).WithArgument("ctx").Node()),
 	}
 	return statements, nil
-}
-
-// genesisTypesCreateDefaultGenesisList returns an AST Node equivalent to Name:
-// &Type{}
-func genesisTypesCreateDefaultGenesisList(opts *typed.Options) []dst.Expr {
-	node := &dst.KeyValueExpr{
-		Decs:  dst.KeyValueExprDecorations{NodeDecs: dst.NodeDecs{Before: 1}},
-		Key:   gocode.Name("%sList", opts.TypeName.UpperCamel),
-		Value: gocode.SliceOf(opts.TypeName.UpperCamel).Node(),
-	}
-	return []dst.Expr{node}
 }
 
 func genesisTestsCreateLists(opts *typed.Options) []dst.Expr {
