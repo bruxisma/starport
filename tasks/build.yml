@@ -1,0 +1,17 @@
+version: '3'
+vars:
+  MODULE: github.com/tendermint/starport
+tasks:
+  default:
+    deps: [starport, gen-cli-docs, shell]
+  starport:
+    desc: Build the starport binary
+    cmds:
+      - task: :go:build
+        vars: {TARGET: cmd/starport }
+    sources:
+      - starport/**/*.go
+  gen-cli-docs:
+    cmds:
+      - task: :go:build
+        vars: {TARGET: internal/tools/gen-cli-docs}

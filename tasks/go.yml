@@ -1,0 +1,19 @@
+version: '3'
+vars:
+  BINARY_DIR: dist/
+  DATE: >-
+    {{ now | date "2006-01-02T15:04:05" }}
+  HEAD: { sh: git rev-parse HEAD }
+  MODPATH: github.com/tendermint/starport/starport/internal/version
+tasks:
+  build:
+    - >-
+      go build
+      {{if (default true .VERBOSE)}}-v{{end}}
+      -mod=readonly
+      -ldflags '-X {{.MODPATH}}.Head={{.HEAD}} -X {{.MODPATH}}.Date={{.DATE}}'
+      {{.GOFLAGS}}
+      -o {{.BINARY_DIR}}
+      ./starport/{{.TARGET}}
+  install:
+    - go install {{.TOOL}}@{{default "latest" .VERSION}}

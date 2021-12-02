@@ -1,0 +1,25 @@
+version: '3'
+
+tasks:
+  go:
+    deps: [golangci-lint, godoc, delve, gopls]
+  vim:
+    desc: Install all golang tools used by vim-go
+  vscode:
+    desc: Install all golang tools used by VS Code's plugin
+    deps: [go]
+  gofumpt:
+    - task: :go:install
+      vars: { TOOL: mvdan.cc/gofumpt }
+  golangci-lint:
+    - task: :go:install
+      vars: { TOOL: github.com/golangci/golangci-lint/cmd/golangci-lint }
+  godoc:
+    - task: :go:install
+      vars: { TOOL: golang.org/x/tools/cmd/godoc }
+  delve:
+    - task: :go:install
+      vars: { TOOL: github.com/go-delve/delve/cmd/dlv }
+  gopls:
+    - task: :go:install
+      vars: { TOOL: golang.org/x/tools/gopls }
