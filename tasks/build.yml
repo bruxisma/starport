@@ -8,7 +8,7 @@ tasks:
     desc: Build the starport binary
     cmds:
       - task: :go:build
-        vars: {TARGET: cmd/starport }
+        vars: {TARGET: cmd/starport, GOFLAGS: '-gcflags="all=-N -l"'}
     sources:
       - starport/**/*.go
   gen-cli-docs:

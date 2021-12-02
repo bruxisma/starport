@@ -8,7 +8,9 @@ import (
 
 	"github.com/dave/dst"
 	"github.com/dave/dst/decorator"
+	"github.com/emicklei/proto"
 	"github.com/tendermint/starport/starport/pkg/gocode"
+	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/templates/typed"
 )
 
@@ -39,6 +41,46 @@ var (
 	structType       = reflect.TypeOf((*dst.StructType)(nil))
 	compositeLitType = reflect.TypeOf((*dst.CompositeLit)(nil))
 )
+
+func mutateProtoGenesisState(tree *protocode.File, opts *typed.Options) (*protocode.File, error) {
+	message, err := protocode.FindMessage(tree, "GenesisState")
+	if err != nil {
+		return nil, err
+	}
+
+	// determine highest field number
+	var seq int
+	for _, item := range message.Elements {
+		if field, ok := item.(*proto.NormalField); ok {
+			seq = field.Sequence
+		}
+	}
+	seq++
+	listField := &proto.NormalField{
+		Field: &proto.Field{
+			Name:     fmt.Sprintf("%sList", opts.TypeName.LowerCamel),
+			Type:     opts.TypeName.UpperCamel,
+			Sequence: seq,
+			Options: []*proto.Option{
+				{
+					Name:     "(gogoproto.nullable)",
+					Constant: proto.Literal{Source: "false"},
+				},
+			},
+		},
+		Repeated: true,
+	}
+	countField := &proto.NormalField{
+		Field: &proto.Field{
+			Name:     fmt.Sprintf("%sCount", opts.TypeName.LowerCamel),
+			Type:     "uint64",
+			Sequence: seq + 1,
+		},
+	}
+
+	message.Elements = append(message.Elements, listField, countField)
+	return tree, nil
+}
 
 func mutateTypesDefaultGenesisReturnValue(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "DefaultGenesis")

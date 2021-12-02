@@ -31,7 +31,7 @@ tasks:
     desc: Build, Execute, and Debug {{.PROJECT_NAME}} to investigate crashes
     deps: [build:starport]
     cmds:
-      - dlv exec dist/{{.PROJECT_NAME}} -- {{.CLI_ARGS}}
+      - dlv exec dist/{{.PROJECT_NAME}}{{exeExt}} -- {{.CLI_ARGS}}
   build:
     desc: Build {{.PROJECT_NAME}} and tooling binaries
     summary: |

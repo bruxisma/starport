@@ -1,11 +1,9 @@
 package list
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 
-	"github.com/emicklei/proto"
 	"github.com/gobuffalo/genny"
 	"github.com/tendermint/starport/starport/pkg/gocode"
 	"github.com/tendermint/starport/starport/pkg/placeholder"
@@ -31,12 +29,12 @@ func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genn
 
 		tree, err := protocode.Parse(file, path)
 		if err != nil {
-			return fmt.Errorf("proto filaure: %w", err)
+			return fmt.Errorf("protocode parse failure: %w", err)
 		}
 
 		tree, err = protocode.AppendImportf(tree, "%s/%s.proto", opts.ModuleName, opts.TypeName.Snake)
 		if err != nil {
-			return err
+			return reportModifyError(path, err)
 		}
 
 		// TODO: Add GogoProtoImport path to *front* of imports
@@ -44,49 +42,17 @@ func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genn
 		// replacementGogoImport := typed.EnsureGogoProtoImported(path, typed.PlaceholderGenesisProtoImport)
 		// content = replacer.Replace(content, typed.PlaceholderGenesisProtoImport, replacementGogoImport)
 
-		message, err := protocode.FindMessage(tree, "GenesisState")
+		tree, err = mutateProtoGenesisState(tree, opts)
 		if err != nil {
-			return nil
+			return reportModifyError(path, err)
 		}
 
-		// determine highest field number
-		var seq int
-		for _, item := range message.Elements {
-			if field, ok := item.(*proto.NormalField); ok {
-				seq = field.Sequence
-			}
-			fmt.Printf("%[1]T with %#[1]v\n", item)
-		}
-		seq++
-		message.Elements = append(message.Elements,
-			&proto.NormalField{
-				Field: &proto.Field{
-					Name:     fmt.Sprintf("%sList", opts.TypeName.LowerCamel),
-					Type:     opts.TypeName.UpperCamel,
-					Sequence: seq,
-					Options: []*proto.Option{
-						{
-							Name:     "(gogoproto.nullable)",
-							Constant: proto.Literal{Source: "false"},
-						},
-					},
-				},
-				Repeated: true,
-			},
-			&proto.NormalField{
-				Field: &proto.Field{
-					Name:     fmt.Sprintf("%sCount", opts.TypeName.LowerCamel),
-					Type:     "uint64",
-					Sequence: seq + 1,
-				},
-			})
-
-		buffer := &bytes.Buffer{}
-		if err = protocode.Fprint(buffer, tree); err != nil {
-			return nil
+		buffer, err := protocode.Write(tree)
+		if err != nil {
+			return reportModifyError(path, err)
 		}
 
-		newFile := genny.NewFileS(path, buffer.String())
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
