@@ -1,7 +1,10 @@
 package list
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/gobuffalo/genny"
@@ -9,7 +12,12 @@ import (
 	"github.com/tendermint/starport/starport/pkg/placeholder"
 	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/templates/typed"
+	"github.com/tendermint/starport/starport/templates/typed/list/mutate"
 )
+
+func reportModifyError(path string, err error) error {
+	return fmt.Errorf("modifying %q errored with %w", path, err)
+}
 
 func genesisModify(replacer placeholder.Replacer, opts *typed.Options, g *genny.Generator) {
 	g.RunFn(genesisProtoModify(replacer, opts))
@@ -32,27 +40,27 @@ func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genn
 			return fmt.Errorf("protocode parse failure: %w", err)
 		}
 
-		tree, err = protocode.AppendImportf(tree, "%s/%s.proto", opts.ModuleName, opts.TypeName.Snake)
+		of := protocode.NewOrganizedFile(tree)
+
+		// Ensure gogoproto/gogo.proto is the *first* import in the list
+		if idx := of.IndexOfImport("gogoproto/gogo.proto"); idx > 0 {
+			of.RemoveImportAt(idx)
+		}
+		of.PrependImport("gogoproto/gogo.proto")
+		of.AppendImportf("%s/%s.proto", opts.ModuleName, opts.TypeName.Snake)
+
+		of, err = mutate.GenesisProtoGenesisState(of, opts)
 		if err != nil {
 			return reportModifyError(path, err)
 		}
 
-		// the gogo proto import is only added if it does not exist. Additionally,
-		// it will be sorted so its position is irrelevant.
-		tree, err = protocode.PrependImport(tree, "gogoproto/gogo.proto")
+		buffer, err := protocode.Write(of.AsFile())
 		if err != nil {
 			return reportModifyError(path, err)
 		}
 
-		tree, err = mutateProtoGenesisState(tree, opts)
-		if err != nil {
-			return reportModifyError(path, err)
-		}
-
-		buffer, err := protocode.Write(tree)
-		if err != nil {
-			return reportModifyError(path, err)
-		}
+		io.Copy(os.Stdout, buffer)
+		return errors.New("STOP")
 
 		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
@@ -66,11 +74,11 @@ func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genn
 		if err != nil {
 			return err
 		}
-		mutations := mutators{
-			mutateTypesDefaultGenesisReturnValue,
-			mutateTypesValidateStatements,
+		sequence := mutate.GoSequence{
+			mutate.GenesisTypesDefaultGenesisReturnValue,
+			mutate.GenesisTypesValidateStatements,
 		}
-		tree, err := mutations.Apply(file, opts)
+		tree, err := sequence.Apply(file, opts)
 		if err != nil {
 			return reportModifyError(path, err)
 		}
@@ -95,11 +103,11 @@ func genesisModuleModify(replacer placeholder.Replacer, opts *typed.Options) gen
 		if err != nil {
 			return err
 		}
-		mutations := mutators{
-			genesisModuleInsertInit,
-			genesisModuleInsertExport,
+		sequence := mutate.GoSequence{
+			mutate.GenesisModuleInsertInit,
+			mutate.GenesisModuleInsertExport,
 		}
-		tree, err := mutations.Apply(file, opts)
+		tree, err := sequence.Apply(file, opts)
 		if err != nil {
 			return reportModifyError(path, err)
 		}
@@ -120,11 +128,11 @@ func genesisTestsModify(replacer placeholder.Replacer, opts *typed.Options) genn
 		if err != nil {
 			return err
 		}
-		mutations := mutators{
-			genesisTestsInsertList,
-			genesisTestsInsertComparison,
+		sequence := mutate.GoSequence{
+			mutate.GenesisTestsInsertList,
+			mutate.GenesisTestsInsertComparison,
 		}
-		tree, err := mutations.Apply(file, opts)
+		tree, err := sequence.Apply(file, opts)
 		if err != nil {
 			return reportModifyError(path, err)
 		}
@@ -145,12 +153,12 @@ func genesisTypesTestsModify(replacer placeholder.Replacer, opts *typed.Options)
 		if err != nil {
 			return err
 		}
-		mutations := mutators{
-			genesisTestsInsertValidGenesisState,
-			genesisTestsInsertDuplicatedState,
-			genesisTestsInsertInvalidCount,
+		sequence := mutate.GoSequence{
+			mutate.GenesisTestsInsertValidGenesisState,
+			mutate.GenesisTestsInsertDuplicatedState,
+			mutate.GenesisTestsInsertInvalidCount,
 		}
-		tree, err := mutations.Apply(file, opts)
+		tree, err := sequence.Apply(file, opts)
 		if err != nil {
 			return reportModifyError(path, err)
 		}

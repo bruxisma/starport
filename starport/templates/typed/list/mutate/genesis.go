@@ -1,66 +1,36 @@
-package list
+package mutate
 
 import (
 	"fmt"
-	"io"
 	"reflect"
 	"strconv"
 
 	"github.com/dave/dst"
-	"github.com/dave/dst/decorator"
 	"github.com/emicklei/proto"
 	"github.com/tendermint/starport/starport/pkg/gocode"
 	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/templates/typed"
 )
 
-type (
-	mutator  func(*dst.File, *typed.Options) (*dst.File, error)
-	mutators []mutator
-)
-
-func reportModifyError(path string, err error) error {
-	return fmt.Errorf("modifying %q errored with %w", path, err)
-}
-
-// Apply executes each mutator on the provided root AST node and Options value
-func (fns mutators) Apply(source io.Reader, opts *typed.Options) (*dst.File, error) {
-	tree, err := decorator.Parse(source)
+func GenesisProtoGenesisState(tree *protocode.OrganizedFile, opts *typed.Options) (*protocode.OrganizedFile, error) {
+	message, err := tree.FindMessage("GenesisState")
 	if err != nil {
 		return nil, err
 	}
-	for _, fn := range fns {
-		if tree, err = fn(tree, opts); err != nil {
-			return nil, err
-		}
-	}
-	return tree, nil
-}
-
-var (
-	structType       = reflect.TypeOf((*dst.StructType)(nil))
-	compositeLitType = reflect.TypeOf((*dst.CompositeLit)(nil))
-)
-
-func mutateProtoGenesisState(tree *protocode.File, opts *typed.Options) (*protocode.File, error) {
-	message, err := protocode.FindMessage(tree, "GenesisState")
-	if err != nil {
-		return nil, err
-	}
-
-	// determine highest field number
-	var seq int
+	var current int
 	for _, item := range message.Elements {
-		if field, ok := item.(*proto.NormalField); ok {
-			seq = field.Sequence
+		switch field := item.(type) {
+		case *proto.NormalField:
+			current = field.Sequence + 1
+		case *proto.OneOfField:
+			current = field.Sequence + 1
 		}
 	}
-	seq++
 	listField := &proto.NormalField{
 		Field: &proto.Field{
 			Name:     fmt.Sprintf("%sList", opts.TypeName.LowerCamel),
 			Type:     opts.TypeName.UpperCamel,
-			Sequence: seq,
+			Sequence: current,
 			Options: []*proto.Option{
 				{
 					Name:     "(gogoproto.nullable)",
@@ -74,15 +44,14 @@ func mutateProtoGenesisState(tree *protocode.File, opts *typed.Options) (*protoc
 		Field: &proto.Field{
 			Name:     fmt.Sprintf("%sCount", opts.TypeName.LowerCamel),
 			Type:     "uint64",
-			Sequence: seq + 1,
+			Sequence: current + 1,
 		},
 	}
-
 	message.Elements = append(message.Elements, listField, countField)
 	return tree, nil
 }
 
-func mutateTypesDefaultGenesisReturnValue(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTypesDefaultGenesisReturnValue(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "DefaultGenesis")
 	if err != nil {
 		return nil, err
@@ -105,7 +74,7 @@ func mutateTypesDefaultGenesisReturnValue(tree *dst.File, opts *typed.Options) (
 	return tree, nil
 }
 
-func mutateTypesValidateStatements(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTypesValidateStatements(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "Validate")
 	if err != nil {
 		return nil, err
@@ -114,7 +83,7 @@ func mutateTypesValidateStatements(tree *dst.File, opts *typed.Options) (*dst.Fi
 		if _, ok := cursor.Node().(*dst.ReturnStmt); !ok {
 			return true
 		}
-		for _, stmt := range mutateTypesCreateValidateCheckNodes(opts) {
+		for _, stmt := range genesisTypesCreateValidateCheckNodes(opts) {
 			cursor.InsertBefore(stmt)
 		}
 		return false
@@ -122,7 +91,7 @@ func mutateTypesValidateStatements(tree *dst.File, opts *typed.Options) (*dst.Fi
 	return tree, nil
 }
 
-func genesisModuleInsertInit(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisModuleInsertInit(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "InitGenesis")
 	if err != nil {
 		return nil, err
@@ -137,7 +106,7 @@ func genesisModuleInsertInit(tree *dst.File, opts *typed.Options) (*dst.File, er
 	return tree, nil
 }
 
-func genesisModuleInsertExport(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisModuleInsertExport(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "ExportGenesis")
 	if err != nil {
 		return nil, err
@@ -156,7 +125,7 @@ func genesisModuleInsertExport(tree *dst.File, opts *typed.Options) (*dst.File, 
 	return tree, nil
 }
 
-func genesisTestsInsertList(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTestsInsertList(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "TestGenesis")
 	if err != nil {
 		return nil, err
@@ -170,7 +139,7 @@ func genesisTestsInsertList(tree *dst.File, opts *typed.Options) (*dst.File, err
 	return tree, nil
 }
 
-func genesisTestsInsertComparison(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTestsInsertComparison(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "TestGenesis")
 	if err != nil {
 		return nil, err
@@ -185,7 +154,7 @@ func genesisTestsInsertComparison(tree *dst.File, opts *typed.Options) (*dst.Fil
 	return tree, nil
 }
 
-func genesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
 		return nil, err
@@ -234,7 +203,7 @@ func genesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*
 	return tree, nil
 }
 
-func genesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
 		return nil, err
@@ -255,7 +224,7 @@ func genesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*ds
 	return tree, nil
 }
 
-func genesisTestsInsertInvalidCount(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTestsInsertInvalidCount(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
 		return nil, err
@@ -275,9 +244,9 @@ func genesisTestsInsertInvalidCount(tree *dst.File, opts *typed.Options) (*dst.F
 	return tree, nil
 }
 
-// mutateTypesCreateValidateCheckNodes is a fairly complex set of statements
+// genesisTypesCreateValidateCheckNodes is a fairly complex set of statements
 // built for inserting into the Validate function
-func mutateTypesCreateValidateCheckNodes(opts *typed.Options) []dst.Stmt {
+func genesisTypesCreateValidateCheckNodes(opts *typed.Options) []dst.Stmt {
 	duplicateIdString := fmt.Sprintf("duplicated id for %s", opts.TypeName.LowerCamel)
 	countComparisonString := fmt.Sprintf(
 		"%s id should be lower or equal than the last id",

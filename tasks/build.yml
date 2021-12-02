@@ -9,8 +9,6 @@ tasks:
     cmds:
       - task: :go:build
         vars: {TARGET: cmd/starport, GOFLAGS: '-gcflags="all=-N -l"'}
-    sources:
-      - starport/**/*.go
   gen-cli-docs:
     cmds:
       - task: :go:build
