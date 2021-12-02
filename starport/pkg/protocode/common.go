@@ -34,15 +34,14 @@ func Fprint(w io.Writer, root *File) error {
 }
 
 type OrganizedFile struct {
-	Filename   string
-	Syntax     *proto.Syntax
-	Package    *proto.Package
-	Imports    []*proto.Import
-	Options    []*proto.Option
-	Enums      []*proto.Enum
-	Procedures []*proto.RPC
-	Messages   []*proto.Message
-	Services   []*proto.Service
+	Filename string
+	Syntax   *proto.Syntax
+	Package  *proto.Package
+	Imports  []*proto.Import
+	Options  []*proto.Option
+	Enums    []*proto.Enum
+	Messages []*proto.Message
+	Services []*proto.Service
 }
 
 func NewOrganizedFile(file *File) *OrganizedFile {
@@ -66,8 +65,6 @@ func WithFile(file *OrganizedFile) proto.Handler {
 			file.appendEnum(value)
 		case *proto.Message:
 			file.appendMessage(value)
-		case *proto.RPC:
-			file.appendProcedure(value)
 		case *proto.Service:
 			file.appendService(value)
 		}
@@ -101,9 +98,6 @@ func (of *OrganizedFile) AsFile() *File {
 		elements = append(elements, item)
 	}
 
-	for _, item := range of.Procedures {
-		elements = append(elements, item)
-	}
 	for _, item := range of.Services {
 		elements = append(elements, item)
 	}
@@ -136,10 +130,6 @@ func (file *OrganizedFile) appendEnum(enum *proto.Enum) {
 
 func (file *OrganizedFile) appendMessage(message *proto.Message) {
 	file.Messages = append(file.Messages, message)
-}
-
-func (file *OrganizedFile) appendProcedure(rpc *proto.RPC) {
-	file.Procedures = append(file.Procedures, rpc)
 }
 
 func (file *OrganizedFile) appendService(service *proto.Service) {

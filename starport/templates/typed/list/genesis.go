@@ -37,10 +37,12 @@ func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genn
 			return reportModifyError(path, err)
 		}
 
-		// TODO: Add GogoProtoImport path to *front* of imports
-		// Add gogo.proto
-		// replacementGogoImport := typed.EnsureGogoProtoImported(path, typed.PlaceholderGenesisProtoImport)
-		// content = replacer.Replace(content, typed.PlaceholderGenesisProtoImport, replacementGogoImport)
+		// the gogo proto import is only added if it does not exist. Additionally,
+		// it will be sorted so its position is irrelevant.
+		tree, err = protocode.PrependImport(tree, "gogoproto/gogo.proto")
+		if err != nil {
+			return reportModifyError(path, err)
+		}
 
 		tree, err = mutateProtoGenesisState(tree, opts)
 		if err != nil {

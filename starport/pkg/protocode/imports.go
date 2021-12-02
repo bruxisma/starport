@@ -34,6 +34,19 @@ func AppendImport(tree *File, filename string) (*File, error) {
 	return tree, nil
 }
 
+func PrependImport(tree *File, filename string) (*File, error) {
+	for idx := 0; idx < len(tree.Elements); idx++ {
+		if _, ok := tree.Elements[idx].(*proto.Import); ok {
+			idx--
+			importNode := createImportNode(tree, filename)
+			tree.Elements = append(tree.Elements[:idx+1], tree.Elements[idx:]...)
+			tree.Elements[idx] = importNode
+			break
+		}
+	}
+	return tree, nil
+}
+
 func createImportNode(parent proto.Visitee, filename string) *proto.Import {
 	return &proto.Import{Parent: parent, Filename: filename}
 }
