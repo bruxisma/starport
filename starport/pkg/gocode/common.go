@@ -27,6 +27,11 @@ type MakeMap struct {
 	inner *dst.MapType
 }
 
+// BasicStringf returns a basic string literal from the format specifiers
+func BasicStringf(format string, args ...interface{}) *dst.BasicLit {
+	return BasicString(fmt.Sprintf(format, args...))
+}
+
 // BasicString returns a basic string literal
 func BasicString(value string) *dst.BasicLit {
 	return &dst.BasicLit{

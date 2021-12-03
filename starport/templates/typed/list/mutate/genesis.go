@@ -17,37 +17,21 @@ func GenesisProtoGenesisState(tree *protocode.File, opts *typed.Options) (*proto
 	if err != nil {
 		return nil, err
 	}
-	var current int
-	for _, item := range message.Elements {
-		switch field := item.(type) {
-		case *proto.NormalField:
-			current = field.Sequence + 1
-		case *proto.OneOfField:
-			current = field.Sequence + 1
-		}
-	}
-	listField := &proto.NormalField{
-		Field: &proto.Field{
-			Name:     fmt.Sprintf("%sList", opts.TypeName.LowerCamel),
-			Type:     opts.TypeName.UpperCamel,
-			Sequence: current,
-			Options: []*proto.Option{
-				{
-					Name:     "(gogoproto.nullable)",
-					Constant: proto.Literal{Source: "false"},
-				},
-			},
-		},
-		Repeated: true,
-	}
-	countField := &proto.NormalField{
-		Field: &proto.Field{
-			Name:     fmt.Sprintf("%sCount", opts.TypeName.LowerCamel),
-			Type:     "uint64",
-			Sequence: current + 1,
+
+	list := &proto.Field{
+		Name: fmt.Sprintf("%sList", opts.TypeName.LowerCamel),
+		Type: opts.TypeName.UpperCamel,
+		Options: []*proto.Option{
+			{Name: "(gogoproto.nullable)", Constant: protocode.False()},
 		},
 	}
-	message.Elements = append(message.Elements, listField, countField)
+
+	message.AppendRepeatedField(list)
+	message.AppendField(&proto.Field{
+		Name: fmt.Sprintf("%sCount", opts.TypeName.LowerCamel),
+		Type: "uint64",
+	})
+
 	return tree, nil
 }
 

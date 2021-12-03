@@ -3,9 +3,9 @@ package typed
 import (
 	"fmt"
 	"go/token"
-	"strconv"
 
 	"github.com/dave/dst"
+	"github.com/tendermint/starport/starport/pkg/gocode"
 )
 
 func findGenericDeclaration(tree *dst.File, kind token.Token) (*dst.GenDecl, error) {
@@ -18,6 +18,8 @@ func findGenericDeclaration(tree *dst.File, kind token.Token) (*dst.GenDecl, err
 	return nil, fmt.Errorf("could not locate generic declaration %v", kind)
 }
 
+// MutateImport will add the given path (or name, path combination) to the
+// golang AST
 func MutateImport(tree *dst.File, values ...string) (*dst.File, error) {
 	var value string
 	var name string
@@ -31,26 +33,35 @@ func MutateImport(tree *dst.File, values ...string) (*dst.File, error) {
 		return nil, fmt.Errorf("MutateImport takes 1 or 2 string arguments. Received %d", len(values))
 	}
 
-	node, err := findGenericDeclaration(tree, token.IMPORT)
-	if err != nil {
-		return nil, err
+	imports := []*dst.ImportSpec{}
+	gocode.Apply(tree, func(cursor *gocode.Cursor) bool {
+		if decl, ok := cursor.Node().(*dst.GenDecl); ok && decl.Tok == token.IMPORT {
+			for _, spec := range decl.Specs {
+				imports = append(imports, spec.(*dst.ImportSpec))
+			}
+			cursor.Delete()
+			return false
+		}
+		return true
+	})
+
+	imports = append(imports, &dst.ImportSpec{
+		Name: gocode.Name(name),
+		Path: gocode.BasicString(value),
+	})
+
+	specs := []dst.Spec{}
+	for _, spec := range imports {
+		specs = append(specs, spec)
 	}
 
-	for _, specs := range node.Specs {
-		imp, ok := specs.(*dst.ImportSpec)
-		if !ok {
-			continue
-		}
-		if imp.Path.Value == strconv.Quote(value) {
-			return tree, nil
-		}
+	decl := &dst.GenDecl{
+		Tok:   token.IMPORT,
+		Specs: specs,
 	}
-	node.Specs = append(node.Specs, &dst.ImportSpec{
-		Name: dst.NewIdent(name),
-		Path: &dst.BasicLit{
-			Kind:  token.STRING,
-			Value: strconv.Quote(value),
-		},
-	})
+
+	tree.Decls = append([]dst.Decl{decl}, tree.Decls...)
+	tree.Imports = imports
+
 	return tree, nil
 }

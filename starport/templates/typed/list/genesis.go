@@ -16,11 +16,11 @@ func reportModifyError(path string, err error) error {
 }
 
 func genesisModify(opts *typed.Options, g *genny.Generator) {
-	g.RunFn(genesisProtoModify(replacer, opts))
-	g.RunFn(genesisTypesModify(replacer, opts))
-	g.RunFn(genesisModuleModify(replacer, opts))
-	g.RunFn(genesisTestsModify(replacer, opts))
-	g.RunFn(genesisTypesTestsModify(replacer, opts))
+	g.RunFn(genesisProtoModify(opts))
+	g.RunFn(genesisTypesModify(opts))
+	g.RunFn(genesisModuleModify(opts))
+	g.RunFn(genesisTestsModify(opts))
+	g.RunFn(genesisTypesTestsModify(opts))
 }
 
 func genesisProtoModify(opts *typed.Options) genny.RunFn {
@@ -37,10 +37,13 @@ func genesisProtoModify(opts *typed.Options) genny.RunFn {
 		}
 
 		// Ensure gogoproto/gogo.proto is the *first* import in the list
-		if idx := tree.IndexOfImport("gogoproto/gogo.proto"); idx > 0 {
+		if idx := tree.IndexOfImport("gogoproto/gogo.proto"); idx >= 0 {
 			tree.RemoveImportAt(idx)
 		}
 		tree.PrependImport("gogoproto/gogo.proto")
+		if idx := tree.IndexOfImportf("%s/%s.proto", opts.ModuleName, opts.TypeName.Snake); idx >= 0 {
+			tree.RemoveImportAt(idx)
+		}
 		tree.AppendImportf("%s/%s.proto", opts.ModuleName, opts.TypeName.Snake)
 
 		tree, err = mutate.GenesisProtoGenesisState(tree, opts)

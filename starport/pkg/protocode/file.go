@@ -6,8 +6,9 @@ import (
 	"github.com/emicklei/proto"
 )
 
-// TODO: Complete wrapping this so it can just *be* the type that is actually
-// used, instead of proto.Proto
+// File represents an "unwrapped" protobuf file that can be reodered safely as
+// top-level declarations don't matter once users are past declaring imports
+// and options
 type File struct {
 	Filename string
 	Syntax   *proto.Syntax
@@ -19,6 +20,7 @@ type File struct {
 	Services []*Service
 }
 
+// NewFile returns a File from a proto.Proto
 func NewFile(p *proto.Proto) *File {
 	file := &File{Filename: p.Filename}
 	proto.Walk(p, withFile(file))
@@ -145,11 +147,13 @@ func (file *File) PrependImportf(format string, args ...interface{}) {
 
 func (file *File) PrependImport(filename string) {
 	nodes := []*proto.Import{
-		&proto.Import{Filename: filename},
+		{Filename: filename},
 	}
 	file.Imports = append(nodes, file.Imports...)
 }
 
+// Proto returns a proto.Proto type for interaction with the API File currently
+// wraps
 func (file *File) Proto() *proto.Proto {
 	length := len(file.Imports) +
 		len(file.Options) +

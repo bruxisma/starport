@@ -4,11 +4,14 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/dave/dst"
 	"github.com/gobuffalo/genny"
+	"github.com/tendermint/starport/starport/pkg/gocode"
 	"github.com/tendermint/starport/starport/pkg/placeholder"
 	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/pkg/xgenny"
@@ -42,19 +45,19 @@ func NewStargate(replacer placeholder.Replacer, opts *typed.Options) (*genny.Gen
 	)
 
 	g.RunFn(protoQueryModify(opts))
-	g.RunFn(moduleGRPCGatewayModify(replacer, opts))
+	g.RunFn(moduleGRPCGatewayModify(opts))
 	g.RunFn(typesKeyModify(opts))
-	g.RunFn(clientCliQueryModify(replacer, opts))
+	g.RunFn(clientCliQueryModify(opts))
 
 	// Genesis modifications
 	genesisModify(opts, g)
 
 	if !opts.NoMessage {
 		// Modifications for new messages
-		g.RunFn(handlerModify(replacer, opts))
+		g.RunFn(handlerModify(opts))
 		g.RunFn(protoTxModify(opts))
 		g.RunFn(typesCodecModify(replacer, opts))
-		g.RunFn(clientCliTxModify(replacer, opts))
+		g.RunFn(clientCliTxModify(opts))
 		g.RunFn(moduleSimulationModify(replacer, opts))
 
 		// Messages template
@@ -68,37 +71,29 @@ func NewStargate(replacer placeholder.Replacer, opts *typed.Options) (*genny.Gen
 	return g, typed.Box(componentTemplate, opts, g)
 }
 
-func handlerModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func handlerModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "handler.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
 
-		// Set once the MsgServer definition if it is not defined yet
-		replacementMsgServer := `msgServer := keeper.NewMsgServerImpl(k)`
-		content := replacer.ReplaceOnce(f.String(), typed.PlaceholderHandlerMsgServer, replacementMsgServer)
+		sequences := mutate.GoSequence{
+			mutate.StargateHandlerInsertMsgServer,
+			mutate.StargateHandlerInsertCases,
+		}
 
-		templateHandlers := `case *types.MsgCreate%[2]v:
-					res, err := msgServer.Create%[2]v(sdk.WrapSDKContext(ctx), msg)
-					return sdk.WrapServiceResult(ctx, res, err)
+		tree, err := sequences.Apply(file, opts)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
+		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
 
-		case *types.MsgUpdate%[2]v:
-					res, err := msgServer.Update%[2]v(sdk.WrapSDKContext(ctx), msg)
-					return sdk.WrapServiceResult(ctx, res, err)
-
-		case *types.MsgDelete%[2]v:
-					res, err := msgServer.Delete%[2]v(sdk.WrapSDKContext(ctx), msg)
-					return sdk.WrapServiceResult(ctx, res, err)
-
-%[1]v`
-		replacementHandlers := fmt.Sprintf(templateHandlers,
-			typed.Placeholder,
-			opts.TypeName.UpperCamel,
-		)
-		content = replacer.Replace(content, typed.Placeholder, replacementHandlers)
-		newFile := genny.NewFileS(path, content)
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
@@ -150,26 +145,35 @@ func protoQueryModify(opts *typed.Options) genny.RunFn {
 		if err != nil {
 			return err
 		}
-		io.Copy(os.Stdout, buffer)
-		return errors.New("STOP")
 
 		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
 
-func moduleGRPCGatewayModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func moduleGRPCGatewayModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "module.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
-		replacement := `"context"`
-		content := replacer.ReplaceOnce(f.String(), typed.Placeholder, replacement)
-		replacement = `types.RegisterQueryHandlerClient(context.Background(), mux, types.NewQueryClient(clientCtx))`
-		content = replacer.ReplaceOnce(content, typed.Placeholder2, replacement)
-		newFile := genny.NewFileS(path, content)
+		sequence := mutate.GoSequence{
+			mutate.StargateInsertGRPCGateway,
+		}
+		tree, err := sequence.Apply(file, opts)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
+		if tree, err = typed.MutateImport(tree, "context"); err != nil {
+			return reportModifyError(path, err)
+		}
+		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
+
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
@@ -177,17 +181,33 @@ func moduleGRPCGatewayModify(replacer placeholder.Replacer, opts *typed.Options)
 func typesKeyModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/keys.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
-		content := f.String() + fmt.Sprintf(`
-const (
-	%[1]vKey= "%[1]v-value-"
-	%[1]vCountKey= "%[1]v-count-"
-)
-`, opts.TypeName.UpperCamel)
-		newFile := genny.NewFileS(path, content)
+		sequence := mutate.GoSequence{}
+		tree, err := sequence.Apply(file, opts)
+		if err != nil {
+			return err
+		}
+
+		// TODO: Check if we need to make one spec per assignment
+		key := &dst.ValueSpec{
+			Names:  []*dst.Ident{gocode.Name("%sKey", opts.TypeName.UpperCamel)},
+			Values: []dst.Expr{gocode.BasicStringf("%s-value-", opts.TypeName.UpperCamel)},
+		}
+		count := &dst.ValueSpec{
+			Names:  []*dst.Ident{gocode.Name("%sCountKey", opts.TypeName.UpperCamel)},
+			Values: []dst.Expr{gocode.BasicStringf("%s-count-", opts.TypeName.UpperCamel)},
+		}
+
+		tree.Decls = append(tree.Decls, &dst.GenDecl{
+			Tok:   token.CONST,
+			Specs: []dst.Spec{key, count},
+		})
+		buffer, err := gocode.Write(tree)
+
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
@@ -195,71 +215,99 @@ const (
 func typesCodecModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/codec.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
 
-		// Import
-		replacementImport := `sdk "github.com/cosmos/cosmos-sdk/types"`
-		content := replacer.ReplaceOnce(f.String(), typed.Placeholder, replacementImport)
+		sequences := mutate.GoSequence{}
 
-		// Concrete
-		templateConcrete := `cdc.RegisterConcrete(&MsgCreate%[2]v{}, "%[3]v/Create%[2]v", nil)
-cdc.RegisterConcrete(&MsgUpdate%[2]v{}, "%[3]v/Update%[2]v", nil)
-cdc.RegisterConcrete(&MsgDelete%[2]v{}, "%[3]v/Delete%[2]v", nil)
-%[1]v`
-		replacementConcrete := fmt.Sprintf(templateConcrete, typed.Placeholder2, opts.TypeName.UpperCamel, opts.ModuleName)
-		content = replacer.Replace(content, typed.Placeholder2, replacementConcrete)
+		tree, err := sequences.Apply(file, opts)
+		if err != nil {
+			return err
+		}
 
-		// Interface
-		templateInterface := `registry.RegisterImplementations((*sdk.Msg)(nil),
-	&MsgCreate%[2]v{},
-	&MsgUpdate%[2]v{},
-	&MsgDelete%[2]v{},
-)
-%[1]v`
-		replacementInterface := fmt.Sprintf(templateInterface, typed.Placeholder3, opts.TypeName.UpperCamel)
-		content = replacer.Replace(content, typed.Placeholder3, replacementInterface)
+		tree, err = typed.MutateImport(tree, "sdk", "github.com/cosmos/cosmos-sdk/types")
+		if err != nil {
+			return err
+		}
 
-		newFile := genny.NewFileS(path, content)
+		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return err
+		}
+
+		//		// Concrete
+		//		templateConcrete := `cdc.RegisterConcrete(&MsgCreate%[2]v{}, "%[3]v/Create%[2]v", nil)
+		//cdc.RegisterConcrete(&MsgUpdate%[2]v{}, "%[3]v/Update%[2]v", nil)
+		//cdc.RegisterConcrete(&MsgDelete%[2]v{}, "%[3]v/Delete%[2]v", nil)
+		//%[1]v`
+		//		replacementConcrete := fmt.Sprintf(templateConcrete, typed.Placeholder2, opts.TypeName.UpperCamel, opts.ModuleName)
+		//		content := replacer.Replace(content, typed.Placeholder2, replacementConcrete)
+		//
+		//		// Interface
+		//		templateInterface := `registry.RegisterImplementations((*sdk.Msg)(nil),
+		//	&MsgCreate%[2]v{},
+		//	&MsgUpdate%[2]v{},
+		//	&MsgDelete%[2]v{},
+		//)
+		//%[1]v`
+		//		replacementInterface := fmt.Sprintf(templateInterface, typed.Placeholder3, opts.TypeName.UpperCamel)
+		//		content = replacer.Replace(content, typed.Placeholder3, replacementInterface)
+
+		io.Copy(os.Stdout, buffer)
+
+		return errors.New("STOP")
+
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
 
-func clientCliTxModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func clientCliTxModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "client/cli/tx.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
-		template := `cmd.AddCommand(CmdCreate%[2]v())
-	cmd.AddCommand(CmdUpdate%[2]v())
-	cmd.AddCommand(CmdDelete%[2]v())
-%[1]v`
-		replacement := fmt.Sprintf(template, typed.Placeholder, opts.TypeName.UpperCamel)
-		content := replacer.Replace(f.String(), typed.Placeholder, replacement)
-		newFile := genny.NewFileS(path, content)
+
+		sequences := mutate.GoSequence{
+			mutate.StargateClientCliTxInsertCommands,
+		}
+		tree, err := sequences.Apply(file, opts)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
+		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
+
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
 
-func clientCliQueryModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func clientCliQueryModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "client/cli/query.go")
-		f, err := r.Disk.Find(path)
+		file, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
-		template := `cmd.AddCommand(CmdList%[2]v())
-	cmd.AddCommand(CmdShow%[2]v())
-%[1]v`
-		replacement := fmt.Sprintf(template, typed.Placeholder,
-			opts.TypeName.UpperCamel,
-		)
-		content := replacer.Replace(f.String(), typed.Placeholder, replacement)
-		newFile := genny.NewFileS(path, content)
+		sequences := mutate.GoSequence{
+			mutate.StargateClientCliQueryInserCommands,
+		}
+		tree, err := sequences.Apply(file, opts)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
+		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return reportModifyError(path, err)
+		}
+		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }

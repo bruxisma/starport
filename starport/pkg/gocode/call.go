@@ -13,6 +13,10 @@ type FunctionCall struct {
 	inner *dst.CallExpr
 }
 
+func Callf(format string, args ...interface{}) *FunctionCall {
+	return Call(fmt.Sprintf(format, args...))
+}
+
 // Call is used to construct a CallStatement with the provided identifier.
 //
 // Additional arguments can be added with the FunctionCall.WithParameters or

@@ -31,7 +31,12 @@ tasks:
     desc: Build, Execute, and Debug {{.PROJECT_NAME}} to investigate crashes
     deps: [build:starport]
     cmds:
-      - dlv exec dist/{{.PROJECT_NAME}}{{exeExt}} -- {{.CLI_ARGS}}
+      - >-
+        dlv exec dist/{{.PROJECT_NAME}}{{exeExt}} --
+        scaffold list
+        loan amount fee collateral deadline state borrower lender
+        --path hackatom
+        {{.CLI_ARGS}}
   build:
     desc: Build {{.PROJECT_NAME}} and tooling binaries
     summary: |
@@ -63,7 +68,7 @@ tasks:
       - >-
         dist/{{.PROJECT_NAME}} scaffold list
         loan amount fee collateral deadline state borrower lender
-        --path workspace
+        --path hackatom
         {{.CLI_ARGS}}
   create:
     desc: Scaffold a chain as a testing ground
