@@ -12,7 +12,7 @@ import (
 	"github.com/tendermint/starport/starport/templates/typed"
 )
 
-func GenesisProtoGenesisState(tree *protocode.OrganizedFile, opts *typed.Options) (*protocode.OrganizedFile, error) {
+func GenesisProtoGenesisState(tree *protocode.File, opts *typed.Options) (*protocode.File, error) {
 	message, err := tree.FindMessage("GenesisState")
 	if err != nil {
 		return nil, err

@@ -57,6 +57,14 @@ tasks:
     cmds:
       - golangci-lint run --out-format=tab --issues-exit-code=0
   vet: [go vet ./...]
+  scaffold:
+    deps: [build:starport]
+    cmds:
+      - >-
+        dist/{{.PROJECT_NAME}} scaffold list
+        loan amount fee collateral deadline state borrower lender
+        --path workspace
+        {{.CLI_ARGS}}
   create:
     desc: Scaffold a chain as a testing ground
     deps: [build:starport]

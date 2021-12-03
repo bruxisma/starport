@@ -1,15 +1,11 @@
 package list
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/gobuffalo/genny"
 	"github.com/tendermint/starport/starport/pkg/gocode"
-	"github.com/tendermint/starport/starport/pkg/placeholder"
 	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/templates/typed"
 	"github.com/tendermint/starport/starport/templates/typed/list/mutate"
@@ -19,7 +15,7 @@ func reportModifyError(path string, err error) error {
 	return fmt.Errorf("modifying %q errored with %w", path, err)
 }
 
-func genesisModify(replacer placeholder.Replacer, opts *typed.Options, g *genny.Generator) {
+func genesisModify(opts *typed.Options, g *genny.Generator) {
 	g.RunFn(genesisProtoModify(replacer, opts))
 	g.RunFn(genesisTypesModify(replacer, opts))
 	g.RunFn(genesisModuleModify(replacer, opts))
@@ -27,7 +23,7 @@ func genesisModify(replacer placeholder.Replacer, opts *typed.Options, g *genny.
 	g.RunFn(genesisTypesTestsModify(replacer, opts))
 }
 
-func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func genesisProtoModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "proto", opts.ModuleName, "genesis.proto")
 		file, err := r.Disk.Find(path)
@@ -40,34 +36,29 @@ func genesisProtoModify(replacer placeholder.Replacer, opts *typed.Options) genn
 			return fmt.Errorf("protocode parse failure: %w", err)
 		}
 
-		of := protocode.NewOrganizedFile(tree)
-
 		// Ensure gogoproto/gogo.proto is the *first* import in the list
-		if idx := of.IndexOfImport("gogoproto/gogo.proto"); idx > 0 {
-			of.RemoveImportAt(idx)
+		if idx := tree.IndexOfImport("gogoproto/gogo.proto"); idx > 0 {
+			tree.RemoveImportAt(idx)
 		}
-		of.PrependImport("gogoproto/gogo.proto")
-		of.AppendImportf("%s/%s.proto", opts.ModuleName, opts.TypeName.Snake)
+		tree.PrependImport("gogoproto/gogo.proto")
+		tree.AppendImportf("%s/%s.proto", opts.ModuleName, opts.TypeName.Snake)
 
-		of, err = mutate.GenesisProtoGenesisState(of, opts)
+		tree, err = mutate.GenesisProtoGenesisState(tree, opts)
 		if err != nil {
 			return reportModifyError(path, err)
 		}
 
-		buffer, err := protocode.Write(of.AsFile())
+		buffer, err := protocode.Write(tree)
 		if err != nil {
 			return reportModifyError(path, err)
 		}
-
-		io.Copy(os.Stdout, buffer)
-		return errors.New("STOP")
 
 		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
 }
 
-func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func genesisTypesModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/genesis.go")
 		file, err := r.Disk.Find(path)
@@ -96,7 +87,7 @@ func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genn
 	}
 }
 
-func genesisModuleModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func genesisModuleModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "genesis.go")
 		file, err := r.Disk.Find(path)
@@ -121,7 +112,7 @@ func genesisModuleModify(replacer placeholder.Replacer, opts *typed.Options) gen
 	}
 }
 
-func genesisTestsModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func genesisTestsModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "genesis_test.go")
 		file, err := r.Disk.Find(path)
@@ -146,7 +137,7 @@ func genesisTestsModify(replacer placeholder.Replacer, opts *typed.Options) genn
 	}
 }
 
-func genesisTypesTestsModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func genesisTypesTestsModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/genesis_test.go")
 		file, err := r.Disk.Find(path)
