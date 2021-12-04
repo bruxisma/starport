@@ -56,7 +56,7 @@ func NewStargate(replacer placeholder.Replacer, opts *typed.Options) (*genny.Gen
 		// Modifications for new messages
 		g.RunFn(handlerModify(opts))
 		g.RunFn(protoTxModify(opts))
-		g.RunFn(typesCodecModify(replacer, opts))
+		g.RunFn(typesCodecModify(opts))
 		g.RunFn(clientCliTxModify(opts))
 		g.RunFn(moduleSimulationModify(replacer, opts))
 
@@ -212,7 +212,7 @@ func typesKeyModify(opts *typed.Options) genny.RunFn {
 	}
 }
 
-func typesCodecModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+func typesCodecModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/codec.go")
 		file, err := r.Disk.Find(path)
@@ -220,7 +220,10 @@ func typesCodecModify(replacer placeholder.Replacer, opts *typed.Options) genny.
 			return err
 		}
 
-		sequences := mutate.GoSequence{}
+		sequences := mutate.GoSequence{
+			mutate.StargateTypesCodecRegisterCodec,
+			mutate.StargateTypesCodecRegisterInterfaces,
+		}
 
 		tree, err := sequences.Apply(file, opts)
 		if err != nil {

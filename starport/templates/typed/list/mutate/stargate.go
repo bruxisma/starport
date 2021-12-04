@@ -62,6 +62,55 @@ func StargateHandlerInsertCases(tree *dst.File, opts *typed.Options) (*dst.File,
 	return tree, nil
 }
 
+func StargateTypesCodecRegisterCodec(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+	fn, err := gocode.FindFunction(tree, "RegisterCodec")
+	if err != nil {
+		return nil, err
+	}
+	for _, action := range []string{"Create", "Update", "Delete"} {
+		addressOf := gocode.Structf("Msg%s%s", action, opts.TypeName.UpperCamel).RemoveDecorations().AddressOf()
+		path := gocode.BasicStringf("%s/%s%s", opts.ModuleName, action, opts.TypeName.UpperCamel)
+		stmt := gocode.Call("cdc", "RegisterConcrete").
+			WithParameters(addressOf, path).
+			WithArgument("nil").
+			AsStatement()
+		fn.Body.List = append(fn.Body.List, stmt)
+	}
+	return tree, nil
+}
+
+func StargateTypesCodecRegisterInterfaces(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+	fn, err := gocode.FindFunction(tree, "RegisterInterfaces")
+	if err != nil {
+		return nil, err
+	}
+	length := len(fn.Body.List)
+	if length == 0 {
+		return nil, fmt.Errorf("RegisterInterfaces has no statements")
+	}
+	last := fn.Body.List[length-1]
+	/* type casts are in fact function calls */
+	typeOfMsg := &dst.CallExpr{
+		Fun: &dst.ParenExpr{
+			X: &dst.StarExpr{X: gocode.Identifier("sdk", "Msg")},
+		},
+		Args: []dst.Expr{gocode.Identifier("nil")},
+		Decs: dst.CallExprDecorations{
+			NodeDecs: dst.NodeDecs{After: dst.NewLine},
+		},
+	}
+	implementations := gocode.Call("registry.RegisterImplementations").
+		WithParameters(typeOfMsg)
+
+	for _, action := range []string{"Create", "Update", "Delete"} {
+		structure := gocode.Structf("Msg%s%s", action, opts.TypeName.UpperCamel).AddressOf()
+		implementations.WithParameters(structure)
+	}
+	fn.Body.List = append(fn.Body.List[:length-1], implementations.AsStatement(), last)
+
+	return tree, nil
+}
+
 func StargateClientCliTxInsertCommands(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "GetTxCmd")
 	if err != nil {

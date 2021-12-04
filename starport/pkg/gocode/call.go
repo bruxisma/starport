@@ -37,6 +37,10 @@ func (fc *FunctionCall) WithParameters(exprs ...dst.Expr) *FunctionCall {
 	return fc
 }
 
+func (fc *FunctionCall) WithArgumentf(format string, args ...interface{}) *FunctionCall {
+	return fc.WithArgument(fmt.Sprintf(format, args...))
+}
+
 // WithArgument returns the received FunctionCall after appending the given
 // values as either an identifier or selector expression.
 func (fc *FunctionCall) WithArgument(name string, fields ...string) *FunctionCall {

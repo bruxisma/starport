@@ -1,6 +1,7 @@
 package gocode
 
 import (
+	"fmt"
 	"go/token"
 	"reflect"
 
@@ -9,6 +10,10 @@ import (
 
 type Structure struct {
 	inner *dst.CompositeLit
+}
+
+func Structf(format string, args ...interface{}) *Structure {
+	return Struct(fmt.Sprintf(format, args...))
 }
 
 func Struct(name string, fields ...string) *Structure {
@@ -21,6 +26,16 @@ func AnonymousStruct() *Structure {
 	return &Structure{
 		inner: &dst.CompositeLit{Decs: CompositeDecs},
 	}
+}
+
+func (structure *Structure) RemoveDecorations() *Structure {
+	structure.inner.Decs = dst.CompositeLitDecorations{}
+	return structure
+}
+
+func (structure *Structure) SetDecorations(decs dst.CompositeLitDecorations) *Structure {
+	structure.inner.Decs = decs
+	return structure
 }
 
 func (structure *Structure) AppendExpr(name string, field dst.Expr) *Structure {
