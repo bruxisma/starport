@@ -108,6 +108,11 @@ func True() *dst.Ident {
 	return dst.NewIdent("true")
 }
 
+// Nil returns the `nil` keyword
+func Nil() *dst.Ident {
+	return dst.NewIdent("nil")
+}
+
 // Item returns a dst.Expr constructed from either an integer, string, boolean,
 // dst.Expr, or Builder.
 //
@@ -136,6 +141,50 @@ func Item(item interface{}) dst.Expr {
 		return value
 	default:
 		panic(fmt.Sprintf("Expression conversion for '%[1]T' is not yet implemented: %#[1]v\n", item))
+	}
+}
+
+// Uninitialized returns a *single* uninitialized variable declartion
+func UninitializedVar(name, typename string, fields ...string) *dst.GenDecl {
+	return &dst.GenDecl{
+		Tok: token.VAR,
+		Specs: []dst.Spec{
+			&dst.ValueSpec{
+				Names: []*dst.Ident{Name(name)},
+				Type:  Identifier(typename, fields...),
+			},
+		},
+	}
+}
+
+// TypedGlobal is used for creating ValueSpecs with an explicit type
+func TypedGlobal(name, typename string, item interface{}) *dst.ValueSpec {
+	spec := Global(name, item)
+	spec.Type = Identifier(typename)
+	return spec
+}
+
+// Global is used for construct ValueSpecs in a simpler way
+func Global(name string, item interface{}) *dst.ValueSpec {
+	return &dst.ValueSpec{
+		Names:  []*dst.Ident{Name(name)},
+		Values: []dst.Expr{Item(item)},
+	}
+}
+
+// AddressOf takes a string, fmt.Stringer, or a dst.Expr and returns a UnaryExpr with
+// the address of operator prepended. If a string is passed, it will converted
+// to a  dst.Ident first
+func AddressOf(item interface{}) *dst.UnaryExpr {
+	switch value := item.(type) {
+	case string:
+		return AddressOf(Identifier(value))
+	case dst.Expr:
+		return &dst.UnaryExpr{Op: token.AND, X: value}
+	case fmt.Stringer:
+		return AddressOf(value.String())
+	default:
+		panic(fmt.Sprintf("gocode.AddressOf only takes a string or dst.Expr. Received %[1]T: %[1]v", item))
 	}
 }
 

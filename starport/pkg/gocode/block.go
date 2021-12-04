@@ -16,6 +16,12 @@ type Block struct {
 	inner *dst.BlockStmt
 }
 
+func (block *Block) Assign(expr dst.Expr, exprs ...dst.Expr) *Assignment {
+	assignment := Assign(expr, exprs...)
+	block.Append(assignment.inner)
+	return assignment
+}
+
 // Call appends a function call (as a statement) to the Block
 func (block *Block) Call(name string, fields ...string) *FunctionCall {
 	call := Call(name, fields...)

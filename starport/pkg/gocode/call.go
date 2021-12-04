@@ -82,7 +82,7 @@ func (fc *FunctionCall) AsStatement() *dst.ExprStmt {
 // PrependCOmment returns the received FunctionCall after prepending the given
 // format string as a single line comment.
 func (fc *FunctionCall) PrependComment(format string, args ...interface{}) *FunctionCall {
-	fc.inner.Decorations().Start.Append("//%s\n", fmt.Sprintf(format, args))
+	fc.inner.Decorations().Start.Append("//%s\n", fmt.Sprintf(format, args...))
 	return fc
 }
 

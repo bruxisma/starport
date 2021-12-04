@@ -216,7 +216,7 @@ func (s Scaffolder) AddType(
 	// create the type generator depending on the model
 	switch {
 	case o.isList:
-		g, err = list.NewStargate(tracer, opts)
+		g, err = list.NewStargate(opts)
 	case o.isMap:
 		g, err = mapGenerator(tracer, opts, o.indexes)
 	case o.isSingleton:

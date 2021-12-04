@@ -14,7 +14,6 @@ import (
 	"github.com/dave/dst"
 	"github.com/gobuffalo/genny"
 	"github.com/tendermint/starport/starport/pkg/gocode"
-	"github.com/tendermint/starport/starport/pkg/placeholder"
 	"github.com/tendermint/starport/starport/pkg/protocode"
 	"github.com/tendermint/starport/starport/pkg/xgenny"
 	"github.com/tendermint/starport/starport/templates/typed"
@@ -32,7 +31,7 @@ var (
 )
 
 // NewStargate returns the generator to scaffold a new type in a Stargate module
-func NewStargate(replacer placeholder.Replacer, opts *typed.Options) (*genny.Generator, error) {
+func NewStargate(opts *typed.Options) (*genny.Generator, error) {
 	var (
 		g = genny.New()
 
@@ -62,7 +61,7 @@ func NewStargate(replacer placeholder.Replacer, opts *typed.Options) (*genny.Gen
 		g.RunFn(protoTxModify(opts))
 		g.RunFn(typesCodecModify(opts))
 		g.RunFn(clientCliTxModify(opts))
-		g.RunFn(moduleSimulationModify(replacer, opts))
+		g.RunFn(moduleSimulationModify(opts))
 
 		// Messages template
 		if err := typed.Box(messagesTemplate, opts, g); err != nil {
@@ -347,7 +346,6 @@ func frontendSrcStoreAppModify(opts *typed.Options) genny.RunFn {
 		}
 
 		newFile := genny.NewFile(path, buffer)
-
 		return r.File(newFile)
 	}
 }

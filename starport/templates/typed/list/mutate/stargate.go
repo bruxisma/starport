@@ -11,10 +11,10 @@ import (
 	"github.com/tendermint/starport/starport/templates/typed"
 )
 
-//StargateHandlerInsertMsgServer inserts a NewMsgServerImpl if (and ONLY IF) it
-//is not defined in the function NewHandler.  It does this by first finding the
-//assignment statement. If it is *not* found, it will insert it *before* the
-//switch statement in the function.
+// StargateHandlerInsertMsgServer inserts a NewMsgServerImpl if (and ONLY IF) it
+// is not defined in the function NewHandler.  It does this by first finding the
+// assignment statement. If it is *not* found, it will insert it *before* the
+// switch statement in the function.
 func StargateHandlerInsertMsgServer(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "NewHandler")
 	if err != nil {
