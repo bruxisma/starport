@@ -15,6 +15,14 @@ var (
 	KVDecs        = dst.KeyValueExprDecorations{NodeDecs: Newlines}
 )
 
+// Builder is defined as any type in the gocode package that is used with the
+// so-called (and aptly named) Builder pattern. This is primarily used
+// internally by gocode, but is still available to users in cases where it
+// might be necessary
+type Builder interface {
+	Build() dst.Expr
+}
+
 type Expression interface {
 	AsExpression() dst.Expr
 }
@@ -98,6 +106,37 @@ func False() *dst.Ident {
 // True returns the `true` identifier
 func True() *dst.Ident {
 	return dst.NewIdent("true")
+}
+
+// Item returns a dst.Expr constructed from either an integer, string, boolean,
+// dst.Expr, or Builder.
+//
+// This same function is used by Slice, and Structure, as well as KeyValue to
+// convert values to valid Exprs. If an invalid parameter is passed in, Item
+// will panic
+func Item(item interface{}) dst.Expr {
+	switch value := item.(type) {
+	case int:
+		return BasicInt(int64(value))
+	case int8:
+		return BasicInt(int64(value))
+	case int16:
+		return BasicInt(int64(value))
+	case int32:
+		return BasicInt(int64(value))
+	case int64:
+		return BasicInt(value)
+	case string:
+		return BasicString(value)
+	case bool:
+		return Name("%t", value)
+	case Builder:
+		return value.Build()
+	case dst.Expr:
+		return value
+	default:
+		panic(fmt.Sprintf("Expression conversion for '%[1]T' is not yet implemented: %#[1]v\n", item))
+	}
 }
 
 // selectors returns a SelectorExpr such that the parameters passed will create

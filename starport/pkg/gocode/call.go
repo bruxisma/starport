@@ -91,3 +91,8 @@ func (fc *FunctionCall) PrependComment(format string, args ...interface{}) *Func
 func (fc *FunctionCall) Node() *dst.CallExpr {
 	return fc.inner
 }
+
+// Build retrns a dst.Expr by calling Node().
+func (fc *FunctionCall) Build() dst.Expr {
+	return fc.Node()
+}

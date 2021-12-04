@@ -8,9 +8,19 @@ import (
 	"github.com/dave/dst"
 )
 
+var functionCallType = reflect.TypeOf((*FunctionCall)(nil))
+
 type Structure struct {
 	inner *dst.CompositeLit
 }
+
+// Anonymous is an opaque type over a map[string]interface{} that implements
+// Builder.
+//
+// This interface allows uses to write a map[string]interface{} literal that is
+// then able to be passed into any API that takes a Builder (or with a call to
+// .Build() a dst.Expr)
+type Anonymous map[string]interface{}
 
 func Structf(format string, args ...interface{}) *Structure {
 	return Struct(fmt.Sprintf(format, args...))
@@ -66,28 +76,36 @@ func (structure *Structure) AddressOf() *dst.UnaryExpr {
 	}
 }
 
+func (structure *Structure) Build() dst.Expr {
+	return structure.Done()
+}
+
+// Construct returns a Structure built from the fields placed inside of
+// Anonymous
+func (anonymous Anonymous) Construct() *Structure {
+	structure := AnonymousStruct()
+	for key, value := range anonymous {
+		structure.AppendField(key, value)
+	}
+	return structure
+}
+
+// Build returns a dst.Expr constructed from the fields placed inside of
+// Anonymous
+func (anonymous Anonymous) Build() dst.Expr {
+	return anonymous.Construct().Build()
+}
+
 // KeyValue returns a dst.KeyValueExpr based on the give name, and the value
 // provided.
 //
 // Due to how rune is an alias for Int32, we do not support BasicLit of kind
 // token.Char
 func KeyValue(name string, item interface{}) *dst.KeyValueExpr {
-	var expr dst.Expr
-	switch value := reflect.Indirect(reflect.ValueOf(item)); value.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		expr = BasicInt(value.Int())
-	case reflect.String:
-		expr = BasicString(value.String())
-	case reflect.Bool:
-		expr = Name("%t", value.Bool())
-	default:
-		panic("Not Yet Implemented")
-	}
 	return &dst.KeyValueExpr{
 		Decs:  KVDecs,
 		Key:   Identifier(name),
-		Value: expr,
+		Value: Item(item),
 	}
 }
 
