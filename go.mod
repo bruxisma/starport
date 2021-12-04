@@ -6,6 +6,7 @@ require (
 	github.com/99designs/keyring v1.1.6
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1 // indirect
+	github.com/andybalholm/cascadia v1.3.1
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.11.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -59,6 +60,7 @@ require (
 	github.com/tendermint/tendermint v0.34.14
 	github.com/tendermint/vue v0.1.55
 	golang.org/x/mod v0.5.1
+	golang.org/x/net v0.0.0-20211203184738-4852103109b8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1 // indirect
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d

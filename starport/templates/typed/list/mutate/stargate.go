@@ -343,10 +343,6 @@ func stargateProtoQueryMessages(tree *protocode.File, opts *typed.Options) {
 	)
 }
 
-// case *types.MsgCreate%[2]v:
-//	res, err := msgServer.Create%[2]v(sdk.WrapSDKContext(ctx), msg)
-//	return sdk.WrapServiceResult(ctx, res, err)
-
 func stargateCreateCaseClause(action string, opts *typed.Options) *dst.CaseClause {
 	name := fmt.Sprintf("%v%v", action, opts.TypeName.UpperCamel)
 	typename := gocode.Identifier("types", fmt.Sprintf("Msg%v", name))

@@ -1,14 +1,16 @@
 package list
 
 import (
+	"bytes"
 	"embed"
 	"errors"
 	"fmt"
 	"go/token"
-	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
+	"strings"
 
+	"github.com/andybalholm/cascadia"
 	"github.com/dave/dst"
 	"github.com/gobuffalo/genny"
 	"github.com/tendermint/starport/starport/pkg/gocode"
@@ -17,6 +19,8 @@ import (
 	"github.com/tendermint/starport/starport/pkg/xgenny"
 	"github.com/tendermint/starport/starport/templates/typed"
 	"github.com/tendermint/starport/starport/templates/typed/list/mutate"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 var (
@@ -66,7 +70,7 @@ func NewStargate(replacer placeholder.Replacer, opts *typed.Options) (*genny.Gen
 		}
 	}
 
-	g.RunFn(frontendSrcStoreAppModify(replacer, opts))
+	g.RunFn(frontendSrcStoreAppModify(opts))
 
 	return g, typed.Box(componentTemplate, opts, g)
 }
@@ -240,28 +244,6 @@ func typesCodecModify(opts *typed.Options) genny.RunFn {
 			return err
 		}
 
-		//		// Concrete
-		//		templateConcrete := `cdc.RegisterConcrete(&MsgCreate%[2]v{}, "%[3]v/Create%[2]v", nil)
-		//cdc.RegisterConcrete(&MsgUpdate%[2]v{}, "%[3]v/Update%[2]v", nil)
-		//cdc.RegisterConcrete(&MsgDelete%[2]v{}, "%[3]v/Delete%[2]v", nil)
-		//%[1]v`
-		//		replacementConcrete := fmt.Sprintf(templateConcrete, typed.Placeholder2, opts.TypeName.UpperCamel, opts.ModuleName)
-		//		content := replacer.Replace(content, typed.Placeholder2, replacementConcrete)
-		//
-		//		// Interface
-		//		templateInterface := `registry.RegisterImplementations((*sdk.Msg)(nil),
-		//	&MsgCreate%[2]v{},
-		//	&MsgUpdate%[2]v{},
-		//	&MsgDelete%[2]v{},
-		//)
-		//%[1]v`
-		//		replacementInterface := fmt.Sprintf(templateInterface, typed.Placeholder3, opts.TypeName.UpperCamel)
-		//		content = replacer.Replace(content, typed.Placeholder3, replacementInterface)
-
-		io.Copy(os.Stdout, buffer)
-
-		return errors.New("STOP")
-
 		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
 	}
@@ -315,27 +297,57 @@ func clientCliQueryModify(opts *typed.Options) genny.RunFn {
 	}
 }
 
-func frontendSrcStoreAppModify(replacer placeholder.Replacer, opts *typed.Options) genny.RunFn {
+// Unfortunately due to limitations with net/html, we cannot use the same
+// behavior we've used everywhere else, and instead must *give up* and then
+// place the SpType node in as a RawNode 😢 This also seriously limits how the
+// text ends up looking as well. For now, we hard code things, but this needs
+// work unfortunately
+func frontendSrcStoreAppModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "vue/src/views/Types.vue")
-		f, err := r.Disk.Find(path)
-		if os.IsNotExist(err) {
-			// Skip modification if the app doesn't contain front-end
+		file, err := r.Disk.Find(path)
+		// Skip modification if the app doesn't contain front-end
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
+		} else if err != nil {
+			return err
 		}
+
+		selector := cascadia.MustCompile(".container")
+
+		nodes, err := html.ParseFragment(file, &html.Node{
+			Type:     html.ElementNode,
+			Data:     "body",
+			DataAtom: atom.Body,
+		})
 		if err != nil {
 			return err
 		}
-		replacement := fmt.Sprintf(`%[1]v
-		<SpType modulePath="%[2]v.%[3]v.%[4]v" moduleType="%[5]v"  />`,
-			typed.Placeholder4,
-			opts.OwnerName,
-			opts.AppName,
-			opts.ModuleName,
-			opts.TypeName.UpperCamel,
-		)
-		content := replacer.Replace(f.String(), typed.Placeholder4, replacement)
-		newFile := genny.NewFileS(path, content)
+
+		if len(nodes) == 0 {
+			return fmt.Errorf(`Could not locate any valid vue tags in %q`, path)
+		}
+
+		div := cascadia.Query(nodes[0], selector)
+		if div == nil {
+			return fmt.Errorf(`Could not locate <div class="container"> in %q`, path)
+		}
+		modulePath := strings.Join(
+			[]string{opts.OwnerName, opts.AppName, opts.ModuleName},
+			".")
+		moduleType := opts.TypeName.UpperCamel
+		div.AppendChild(&html.Node{
+			Type: html.RawNode,
+			Data: fmt.Sprintf("  <SpType modulePath=%q moduleType=%q />\n    ", modulePath, moduleType),
+		})
+
+		buffer := &bytes.Buffer{}
+		for _, node := range nodes {
+			html.Render(buffer, node)
+		}
+
+		newFile := genny.NewFile(path, buffer)
+
 		return r.File(newFile)
 	}
 }
