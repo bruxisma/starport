@@ -297,6 +297,9 @@ func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genn
 		}
 
 		tree, err = typed.MutateImport(tree, "fmt")
+		if err != nil {
+			return err
+		}
 
 		buffer := &bytes.Buffer{}
 		if err = decorator.Fprint(buffer, tree); err != nil {

@@ -149,8 +149,7 @@ func genesisTypesTestsModify(opts *typed.Options) genny.RunFn {
 		}
 		sequence := mutate.GoSequence{
 			mutate.GenesisTestsInsertValidGenesisState,
-			mutate.GenesisTestsInsertDuplicatedState,
-			mutate.GenesisTestsInsertInvalidCount,
+			mutate.GenesisTestsInsertInvalidGenesisState,
 		}
 		tree, err := sequence.Apply(file, opts)
 		if err != nil {

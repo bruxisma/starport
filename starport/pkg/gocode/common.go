@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/token"
 	"strconv"
+	"strings"
 
 	"github.com/dave/dst"
 )
@@ -57,17 +58,17 @@ func BasicInt(value int64) *dst.BasicLit {
 }
 
 // MakeSliceOf returns a CallExpr equivalent to `make([]name.fields)`
-func MakeSliceOf(name string, fields ...string) *dst.CallExpr {
-	arrayType := &dst.ArrayType{Elt: Identifier(name, fields...)}
+func MakeSliceOf(name string) *dst.CallExpr {
+	arrayType := &dst.ArrayType{Elt: Identifier(name)}
 	return Call("make").WithParameters(arrayType).Node()
 }
 
 // MakeMapOf returns a node builder that is used to construct a very basic call
 // to `make(map[T]U)`
-func MakeMapOf(name string, fields ...string) *MakeMap {
+func MakeMapOf(name string) *MakeMap {
 	return &MakeMap{
 		inner: &dst.MapType{
-			Key: Identifier(name, fields...),
+			Key: Identifier(name),
 		},
 	}
 }
@@ -75,8 +76,8 @@ func MakeMapOf(name string, fields ...string) *MakeMap {
 // WithIndexOf returns a CallExpr where the CallExpr contains the provided
 // values as an identifier or selector expression such that the CallExpr
 // provided is equivalent to `make(map[T]U)`
-func (mm *MakeMap) WithIndexOf(name string, fields ...string) *dst.CallExpr {
-	mm.inner.Value = Identifier(name, fields...)
+func (mm *MakeMap) WithIndexOf(name string) *dst.CallExpr {
+	mm.inner.Value = Identifier(name)
 	return Call("make").WithParameters(mm.inner).Node()
 }
 
@@ -84,11 +85,12 @@ func (mm *MakeMap) WithIndexOf(name string, fields ...string) *dst.CallExpr {
 //
 // This is how non-package qualified names are generated, and how access to
 // struct fields are created.
-func Identifier(name string, fields ...string) dst.Expr {
-	if len(fields) == 0 {
+func Identifier(name string) dst.Expr {
+	components := strings.Split(name, ".")
+	if len(components) == 1 {
 		return dst.NewIdent(name)
 	}
-	return selector(name, fields[0], fields[1:]...)
+	return selector(components[0], components[1], components[2:]...)
 }
 
 // Name returns a dst.Ident constructed from the formatted string.
@@ -145,13 +147,13 @@ func Item(item interface{}) dst.Expr {
 }
 
 // Uninitialized returns a *single* uninitialized variable declartion
-func UninitializedVar(name, typename string, fields ...string) *dst.GenDecl {
+func UninitializedVar(name, typename string) *dst.GenDecl {
 	return &dst.GenDecl{
 		Tok: token.VAR,
 		Specs: []dst.Spec{
 			&dst.ValueSpec{
 				Names: []*dst.Ident{Name(name)},
-				Type:  Identifier(typename, fields...),
+				Type:  Identifier(typename),
 			},
 		},
 	}
@@ -186,6 +188,14 @@ func AddressOf(item interface{}) *dst.UnaryExpr {
 	default:
 		panic(fmt.Sprintf("gocode.AddressOf only takes a string or dst.Expr. Received %[1]T: %[1]v", item))
 	}
+}
+
+// Errorf acts much like fmt.Errorf, except that it returns a *FunctionCall
+// that turns *into* the provided string.
+//
+// NOTE: This function does not delay the format specifiers.
+func Errorf(format string, args ...interface{}) *FunctionCall {
+	return Call("fmt.Errorf").WithStringf(format, args...)
 }
 
 // selectors returns a SelectorExpr such that the parameters passed will create

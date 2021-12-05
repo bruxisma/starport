@@ -11,8 +11,7 @@ import (
 
 // SimulationInsertGenesisState mutates the GenesisState value with new list and count values
 func SimulationInsertGenesisState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	// TODO: move into a mutate Sequence
-	fn, err := gocode.FindFunction(tree, "GenerateGenesisState")
+	fn, err := gocode.FindMethod(tree, "AppModule.GenerateGenesisState")
 	if err != nil {
 		return nil, err
 	}
@@ -30,14 +29,14 @@ func SimulationInsertGenesisState(tree *dst.File, opts *typed.Options) (*dst.Fil
 		signer := opts.MsgSigner.UpperCamel
 		list := gocode.KeyValue(
 			fmt.Sprintf("%sList", opts.TypeName.UpperCamel),
-			gocode.SliceOf("types", opts.TypeName.UpperCamel).Extend(
+			gocode.Slicef("types.%s", opts.TypeName.UpperCamel).Extend(
 				gocode.Anonymous{
 					"Id":   0,
-					signer: gocode.Call("sample", "AccAddress"),
+					signer: gocode.Call("sample.AccAddress"),
 				},
 				gocode.Anonymous{
 					"Id":   1,
-					signer: gocode.Call("sample", "AccAddress"),
+					signer: gocode.Call("sample.AccAddress"),
 				}))
 		count := gocode.KeyValue(fmt.Sprintf("%sCount", opts.TypeName.UpperCamel), 2)
 
@@ -76,7 +75,7 @@ func SimulationInsertConstOpWeightMsg(tree *dst.File, opts *typed.Options) (*dst
 }
 
 func SimulationInsertWeightedOperations(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := gocode.FindFunction(tree, "WeightedOperations")
+	fn, err := gocode.FindMethod(tree, "AppModule.WeightedOperations")
 	if err != nil {
 		return nil, err
 	}
@@ -90,25 +89,25 @@ func SimulationInsertWeightedOperations(tree *dst.File, opts *typed.Options) (*d
 			weightMsg := fmt.Sprintf("weightMsg%s", name)
 
 			randFunc := gocode.Func().
-				Parameter(gocode.Name("_"), gocode.Identifier("rand", "Rand")).
+				Parameter(gocode.Name("_"), gocode.Identifier("*rand.Rand")).
 				Do(func(block *gocode.Block) {
 					block.Assign(gocode.Name(weightMsg)).To(gocode.Name("defaultWeightMsg%s", name))
 				})
-			getOrGenerate := gocode.Call("simState", "AppParams", "GetOrGenerate").
-				WithArgument("simState", "Cdc").
+			getOrGenerate := gocode.Call("simState.AppParams.GetOrGenerate").
+				WithArgument("simState.Cdc").
 				WithArgumentf("opWeightMsg%s", name).
 				WithParameters(gocode.AddressOf(weightMsg)).
 				WithParameters(gocode.Nil()).
 				WithParameters(randFunc.Build()).
 				AsStatement()
 
-			simulateMsg := gocode.Call(fmt.Sprintf("%ssimulation", opts.ModuleName), fmt.Sprintf("SimulateMsg%s", name)).
-				WithArgument("am", "accountKeeper").
-				WithArgument("am", "bankKeeper").
-				WithArgument("am", "keeper").
+			simulateMsg := gocode.Callf("%ssimulation.SimulateMsg%s", opts.ModuleName, name).
+				WithArgument("am.accountKeeper").
+				WithArgument("am.bankKeeper").
+				WithArgument("am.keeper").
 				Build()
 
-			newWeightOperation := gocode.Call("simulation", "NewWeightOperation").
+			newWeightOperation := gocode.Call("simulation.NewWeightedOperation").
 				WithArgument(weightMsg).
 				WithParameters(simulateMsg).
 				Node()

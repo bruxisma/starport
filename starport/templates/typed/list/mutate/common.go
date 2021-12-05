@@ -11,10 +11,14 @@ import (
 )
 
 type (
+	// ProtoASTModifier is used to apply mutations to a protocode.File (a protobuf AST root)
 	ProtoASTModifier func(*protocode.File, *typed.Options) (*protocode.File, error)
-	GoASTModifier    func(*dst.File, *typed.Options) (*dst.File, error)
-	ProtoSequence    []ProtoASTModifier
-	GoSequence       []GoASTModifier
+	// GoASTModifier is used to apply mutations to a dst.File (a golang AST root)
+	GoASTModifier func(*dst.File, *typed.Options) (*dst.File, error)
+	// ProtoSequence is a Slice of ProtoASTModifier
+	ProtoSequence []ProtoASTModifier
+	// GoSequence is a Slice of GoASTModifier
+	GoSequence []GoASTModifier
 )
 
 var (

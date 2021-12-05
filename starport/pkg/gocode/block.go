@@ -1,6 +1,7 @@
 package gocode
 
 import (
+	"fmt"
 	"go/token"
 
 	"github.com/dave/dst"
@@ -16,15 +17,22 @@ type Block struct {
 	inner *dst.BlockStmt
 }
 
+// Assign returns an Assignment that will be exported as part of the Block's
+// body
 func (block *Block) Assign(expr dst.Expr, exprs ...dst.Expr) *Assignment {
 	assignment := Assign(expr, exprs...)
 	block.Append(assignment.inner)
 	return assignment
 }
 
+// Callf calls Call with the constructed format string
+func (block *Block) Callf(format string, args ...interface{}) *FunctionCall {
+	return block.Call(fmt.Sprintf(format, args...))
+}
+
 // Call appends a function call (as a statement) to the Block
-func (block *Block) Call(name string, fields ...string) *FunctionCall {
-	call := Call(name, fields...)
+func (block *Block) Call(name string) *FunctionCall {
+	call := Call(name)
 	block.Append(call.AsStatement())
 	return call
 }
@@ -49,14 +57,17 @@ func (block *Block) WhenAssigning(item string, items ...string) *WhenBuilder {
 	return when
 }
 
+// AssignIndex returns an Assignment that be exported as part of the Block's
+// body by calling gocode.AssignIndex
 func (block *Block) AssignIndex(collection dst.Expr, index dst.Expr) *Assignment {
 	assignment := AssignIndex(collection, index)
 	block.Append(assignment.inner)
 	return assignment
 }
 
-func (block *Block) IfVar(name string, fields ...string) *IfStatement {
-	stmt := IfVar(name, fields...)
+// IfVar returns an IfStatement attached to the Block's body, by calling IfVar
+func (block *Block) IfVar(name string) *IfStatement {
+	stmt := IfVar(name)
 	block.Append(stmt.inner)
 	return stmt
 }
@@ -77,11 +88,10 @@ func (block *Block) Return() {
 }
 
 // Returns appends a return statement with the provided expressions to the Block
-func (block *Block) Returns(expr dst.Expr, exprs ...dst.Expr) {
+func (block *Block) Returns(items ...interface{}) {
 	values := []dst.Expr{}
-	values = append(values, expr)
-	if len(exprs) != 0 {
-		values = append(values, exprs...)
+	for _, item := range items {
+		values = append(values, Item(item))
 	}
 	block.Append(&dst.ReturnStmt{Results: values})
 }

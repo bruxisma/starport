@@ -120,6 +120,9 @@ func protoTxModify(opts *typed.Options) genny.RunFn {
 		}
 
 		buffer, err := protocode.Write(tree)
+		if err != nil {
+			return err
+		}
 
 		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
@@ -209,6 +212,9 @@ func typesKeyModify(opts *typed.Options) genny.RunFn {
 			Specs: []dst.Spec{key, count},
 		})
 		buffer, err := gocode.Write(tree)
+		if err != nil {
+			return err
+		}
 
 		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)
@@ -324,12 +330,12 @@ func frontendSrcStoreAppModify(opts *typed.Options) genny.RunFn {
 		}
 
 		if len(nodes) == 0 {
-			return fmt.Errorf(`Could not locate any valid vue tags in %q`, path)
+			return fmt.Errorf(`could not locate any valid vue tags in %q`, path)
 		}
 
 		div := cascadia.Query(nodes[0], selector)
 		if div == nil {
-			return fmt.Errorf(`Could not locate <div class="container"> in %q`, path)
+			return fmt.Errorf(`could not locate <div class="container"> in %q`, path)
 		}
 		modulePath := strings.Join(
 			[]string{opts.OwnerName, opts.AppName, opts.ModuleName},

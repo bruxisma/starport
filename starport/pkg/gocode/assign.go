@@ -31,8 +31,8 @@ func Assignf(format string, args ...interface{}) *Assignment {
 
 // AssignVariable returns an Assignment where the LHS has been initialized with
 // either an identifier or a "selector" expression (e.g., x.y)
-func AssignVariable(name string, fields ...string) *Assignment {
-	return Assign(Identifier(name, fields...))
+func AssignVariable(name string) *Assignment {
+	return Assign(Identifier(name))
 }
 
 // AssignCheck returns an Assignment where the LHS has been initialized with
@@ -84,11 +84,13 @@ func DefineCheck(name string) *Assignment {
 	return Define(Identifier(name), Identifier("err"))
 }
 
-// To returns an AssignStmt AST node after setting the RHS of an assignment to
-// the provided expressions.
-func (assignment *Assignment) To(expr dst.Expr, exprs ...dst.Expr) *dst.AssignStmt {
+// To returns an AssignStmt AST node after setting the RHS of an assignment
+// with the provided expressions.
+func (assignment *Assignment) To(items ...interface{}) *dst.AssignStmt {
 	rhs := []dst.Expr{}
-	rhs = append(append(rhs, expr), exprs...)
+	for _, item := range items {
+		rhs = append(rhs, Item(item))
+	}
 	assignment.inner.Rhs = rhs
 	return assignment.inner
 }

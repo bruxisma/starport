@@ -3,13 +3,14 @@ package gocode
 import (
 	"fmt"
 	"go/token"
-	"reflect"
 
 	"github.com/dave/dst"
 )
 
-var functionCallType = reflect.TypeOf((*FunctionCall)(nil))
-
+// Structure is a Builder used to construct a struct *literal*.
+//
+// NOTE: At this time, this API doesn't need to construct types, only struct
+// instances.
 type Structure struct {
 	inner *dst.CompositeLit
 }
@@ -26,9 +27,9 @@ func Structf(format string, args ...interface{}) *Structure {
 	return Struct(fmt.Sprintf(format, args...))
 }
 
-func Struct(name string, fields ...string) *Structure {
+func Struct(name string) *Structure {
 	structure := AnonymousStruct()
-	structure.inner.Type = Identifier(name, fields...)
+	structure.inner.Type = Identifier(name)
 	return structure
 }
 
@@ -65,6 +66,13 @@ func (structure *Structure) Append(kv *dst.KeyValueExpr) *Structure {
 	return structure
 }
 
+func (structure *Structure) Extend(fields map[string]interface{}) *Structure {
+	for key, value := range fields {
+		structure.AppendField(key, value)
+	}
+	return structure
+}
+
 func (structure *Structure) Done() *dst.CompositeLit {
 	return structure.inner
 }
@@ -83,11 +91,7 @@ func (structure *Structure) Build() dst.Expr {
 // Construct returns a Structure built from the fields placed inside of
 // Anonymous
 func (anonymous Anonymous) Construct() *Structure {
-	structure := AnonymousStruct()
-	for key, value := range anonymous {
-		structure.AppendField(key, value)
-	}
-	return structure
+	return AnonymousStruct().Extend(anonymous)
 }
 
 // Build returns a dst.Expr constructed from the fields placed inside of

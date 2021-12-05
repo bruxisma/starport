@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
 	"github.com/tendermint/starport/starport/pkg/chaincmd"
 	"github.com/tendermint/starport/starport/services/chain"
@@ -17,33 +16,22 @@ const (
 	flagReleasePrefix  = "release.prefix"
 )
 
-const chainBuildHelp = `
-By default, build your node binaries
-and add the binaries to your ` + "`$(go env GOPATH)/bin`" + ` path.
-
-To build binaries for a release, use the ` + "`--release`" + ` flag. The app binaries
-for one or more specified release targets are built in a ` + "`release/`" + `dir under the app's
-source. Specify the release targets with ` + "`${GOOS}:${GOARCH}`" + ` build tags.
-If the optional ` + "`--release.targets`" + ` is not specified, a binary is created for your current environment.
-
-Sample usages:
-
-  - ` + "`starport chain build`" + `
-  - ` + "`starport chain build --release -t linux:amd64 -t darwin:amd64 -t darwin:arm64`"
-
 // NewChainBuild returns a new build command to build a blockchain app.
 func NewChainBuild() *cobra.Command {
-	var longHelp string
-	var err error
-	if longHelp, err = glamour.Render(chainBuildHelp, "auto"); err != nil {
-		longHelp = chainBuildHelp
-	}
 	c := &cobra.Command{
 		Use:   "build",
 		Short: "Build a node binary",
-		Long:  longHelp,
-		Args:  cobra.ExactArgs(0),
-		RunE:  chainBuildHandler,
+		Long: `By default, build your node binaries
+and add the binaries to your $(go env GOPATH)/bin path.
+To build binaries for a release, use the --release flag. The app binaries
+for one or more specified release targets are built in a release/ dir under the app's
+source. Specify the release targets with GOOS:GOARCH build tags.
+If the optional --release.targets is not specified, a binary is created for your current environment.
+Sample usages:
+	- starport chain build
+	- starport chain build --release -t linux:amd64 -t darwin:amd64 -t darwin:arm64`,
+		Args: cobra.ExactArgs(0),
+		RunE: chainBuildHandler,
 	}
 
 	c.Flags().AddFlagSet(flagSetHome())

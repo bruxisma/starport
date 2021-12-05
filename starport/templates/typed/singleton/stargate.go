@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dave/dst/decorator"
-	"github.com/dave/jennifer/jen"
 	"github.com/gobuffalo/genny"
 	"github.com/tendermint/starport/starport/pkg/placeholder"
 	"github.com/tendermint/starport/starport/pkg/xgenny"
@@ -71,19 +70,15 @@ func NewStargate(replacer placeholder.Replacer, opts *typed.Options) (*genny.Gen
 func typesKeyModify(opts *typed.Options) genny.RunFn {
 	return func(r *genny.Runner) error {
 		path := filepath.Join(opts.AppPath, "x", opts.ModuleName, "types/keys.go")
-		// pathname := strings.TrimSuffix(path, filepath.Ext(path))
-		// file := jen.NewFile(pathname)
 		f, err := r.Disk.Find(path)
 		if err != nil {
 			return err
 		}
-		text := jen.Const().Defs(
-			jen.Id(fmt.Sprintf("%vKey", opts.TypeName.UpperCamel)).
-				Op("=").
-				Lit(fmt.Sprintf("%v-value-", opts.TypeName.UpperCamel)),
-		)
-		content := fmt.Sprintf("%s\n%#v", f.String(), text)
-		fmt.Printf("Generating typesKeyModify Content: %s\n", content)
+		content := f.String() + fmt.Sprintf(`
+const (
+	%[1]vKey= "%[1]v-value-"
+)
+`, opts.TypeName.UpperCamel)
 		newFile := genny.NewFileS(path, content)
 		return r.File(newFile)
 	}
@@ -233,6 +228,9 @@ func genesisTypesModify(replacer placeholder.Replacer, opts *typed.Options) genn
 		}
 
 		tree, err = typed.MutateImport(tree, "fmt")
+		if err != nil {
+			return err
+		}
 		buffer := &bytes.Buffer{}
 		if err = decorator.Fprint(buffer, tree); err != nil {
 			return err

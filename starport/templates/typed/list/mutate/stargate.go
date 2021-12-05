@@ -20,26 +20,15 @@ func StargateHandlerInsertMsgServer(tree *dst.File, opts *typed.Options) (*dst.F
 	if err != nil {
 		return nil, err
 	}
-	for _, stmt := range fn.Body.List {
-		if assignment, ok := stmt.(*dst.AssignStmt); !ok {
-			continue
-		} else if identifier, ok := assignment.Lhs[0].(*dst.Ident); !ok || identifier.Name != "msgServer" {
-			continue
-		} else {
-			gocode.Apply(fn, func(cursor *gocode.Cursor) bool {
-				if _, ok := cursor.Node().(*dst.SwitchStmt); !ok {
-					return true
-				}
-				call := gocode.Call("keeper", "NewMsgServerImpl").
-					WithArgument("k").
-					Node()
-				assignment := gocode.DefineVariable("msgServer").To(call)
-				cursor.InsertBefore(assignment)
-				return false
-			})
-			break
+	gocode.Apply(fn, func(cursor *gocode.Cursor) bool {
+		if _, ok := cursor.Node().(*dst.ReturnStmt); !ok {
+			return true
 		}
-	}
+		call := gocode.Call("keeper.NewMsgServerImpl").WithArgument("k")
+		assignment := gocode.DefineVariable("msgServer").To(call)
+		cursor.InsertBefore(assignment)
+		return false
+	})
 	return tree, nil
 }
 
@@ -70,7 +59,7 @@ func StargateTypesCodecRegisterCodec(tree *dst.File, opts *typed.Options) (*dst.
 	for _, action := range []string{"Create", "Update", "Delete"} {
 		addressOf := gocode.Structf("Msg%s%s", action, opts.TypeName.UpperCamel).RemoveDecorations().AddressOf()
 		path := gocode.BasicStringf("%s/%s%s", opts.ModuleName, action, opts.TypeName.UpperCamel)
-		stmt := gocode.Call("cdc", "RegisterConcrete").
+		stmt := gocode.Call("cdc.RegisterConcrete").
 			WithParameters(addressOf, path).
 			WithArgument("nil").
 			AsStatement()
@@ -92,7 +81,7 @@ func StargateTypesCodecRegisterInterfaces(tree *dst.File, opts *typed.Options) (
 	/* type casts are in fact function calls */
 	typeOfMsg := &dst.CallExpr{
 		Fun: &dst.ParenExpr{
-			X: &dst.StarExpr{X: gocode.Identifier("sdk", "Msg")},
+			X: &dst.StarExpr{X: gocode.Identifier("sdk.Msg")},
 		},
 		Args: []dst.Expr{gocode.Identifier("nil")},
 		Decs: dst.CallExprDecorations{
@@ -122,7 +111,7 @@ func StargateClientCliTxInsertCommands(tree *dst.File, opts *typed.Options) (*ds
 			return true
 		}
 		for _, action := range []string{"Create", "Update", "Delete"} {
-			stmt := gocode.Call("cmd", "AddCommand").
+			stmt := gocode.Callf("cmd.AddCommand").
 				WithParameters(gocode.Callf("Cmd%v%v", action, opts.TypeName.UpperCamel).Node()).
 				AsStatement()
 			cursor.InsertBefore(stmt)
@@ -143,7 +132,7 @@ func StargateClientCliQueryInserCommands(tree *dst.File, opts *typed.Options) (*
 			return true
 		}
 		for _, action := range []string{"List", "Show"} {
-			stmt := gocode.Call("cmd", "AddCommand").
+			stmt := gocode.Call("cmd.AddCommand").
 				WithParameters(gocode.Callf("Cmd%v%v", action, opts.TypeName.UpperCamel).Node()).
 				AsStatement()
 			cursor.InsertBefore(stmt)
@@ -155,7 +144,7 @@ func StargateClientCliQueryInserCommands(tree *dst.File, opts *typed.Options) (*
 }
 
 func StargateInsertGRPCGateway(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := gocode.FindFunction(tree, "RegisterGRPCGatewayRoutes")
+	fn, err := gocode.FindMethod(tree, "AppModuleBasic.RegisterGRPCGatewayRoutes")
 	if err != nil {
 		return nil, err
 	}
@@ -163,10 +152,10 @@ func StargateInsertGRPCGateway(tree *dst.File, opts *typed.Options) (*dst.File, 
 		return tree, nil
 	}
 
-	background := gocode.Call("context", "Background").Node()
-	client := gocode.Call("types", "NewQueryClient").WithArgument("clientCtx").Node()
+	background := gocode.Call("context.Background").Node()
+	client := gocode.Call("types.NewQueryClient").WithArgument("clientCtx").Node()
 
-	register := gocode.Call("types", "RegisterQueryHandlerClient").
+	register := gocode.Call("types.RegisterQueryHandlerClient").
 		WithParameters(background).
 		WithArgument("mux").
 		WithParameters(client).
@@ -218,17 +207,17 @@ func StargateProtoTx(tree *protocode.File, opts *typed.Options) (*protocode.File
 	msgUpdate := protocode.CreateMessagef("MsgUpdate%s", opts.TypeName.UpperCamel)
 	msgDelete := protocode.CreateMessagef("MsgDelete%s", opts.TypeName.UpperCamel)
 
-	signerField := &proto.Field{Name: opts.MsgSigner.LowerCamel, Type: "string"}
-	idField := &proto.Field{Name: "id", Type: "uint64"}
+	signerField := proto.Field{Name: opts.MsgSigner.LowerCamel, Type: "string"}
+	idField := proto.Field{Name: "id", Type: "uint64"}
 
-	msgCreateResponse.AppendField(idField)
-	msgDelete.AppendFields(signerField, idField)
-	msgUpdate.AppendFields(signerField, idField)
-	msgCreate.AppendFields(signerField)
+	msgCreateResponse.Append(idField)
+	msgDelete.Extend(signerField, idField)
+	msgUpdate.Extend(signerField, idField)
+	msgCreate.Append(signerField)
 
 	for _, msg := range []*protocode.Message{msgCreate, msgUpdate} {
 		for _, field := range opts.Fields {
-			msg.AppendField(&proto.Field{
+			msg.Append(proto.Field{
 				Name: field.Name.LowerCamel,
 				Type: string(field.DatatypeName),
 			})
@@ -270,19 +259,21 @@ func StargateProtoQuery(tree *protocode.File, opts *typed.Options) (*protocode.F
 }
 
 func stargateProtoQueryService(service *protocode.Service, opts *typed.Options) {
+	typename := opts.TypeName.UpperCamel
+	variable := opts.TypeName.LowerCamel
 	queryPathComponents := []string{
 		opts.OwnerName,
 		opts.AppName,
 		opts.ModuleName,
 		opts.TypeName.LowerCamel,
 	}
-	queryPathPrefix := fmt.Sprintf("%s", strings.Join(queryPathComponents, "/"))
+	queryPathPrefix := strings.Join(queryPathComponents, "/")
 	queryProcedures := []*proto.RPC{
 		{
 			Name:        opts.TypeName.UpperCamel,
-			Comment:     protocode.Commentf("Queries a %s by id", opts.TypeName.LowerCamel),
-			RequestType: fmt.Sprintf("QueryGet%sRequest", opts.TypeName.UpperCamel),
-			ReturnsType: fmt.Sprintf("QueryGet%sResponse", opts.TypeName.UpperCamel),
+			Comment:     protocode.Commentf("Queries a %s by id", variable),
+			RequestType: fmt.Sprintf("QueryGet%sRequest", typename),
+			ReturnsType: fmt.Sprintf("QueryGet%sResponse", typename),
 			Elements: []proto.Visitee{
 				&proto.Option{
 					Name:     "(google.api.http).get",
@@ -291,10 +282,10 @@ func stargateProtoQueryService(service *protocode.Service, opts *typed.Options) 
 			},
 		},
 		{
-			Name:        fmt.Sprintf("%vAll", opts.TypeName.UpperCamel),
-			Comment:     protocode.Commentf("Queries a list of %v items", opts.TypeName.LowerCamel),
-			RequestType: fmt.Sprintf("QueryAll%vRequest", opts.TypeName.UpperCamel),
-			ReturnsType: fmt.Sprintf("QueryAll%vResponse", opts.TypeName.UpperCamel),
+			Name:        fmt.Sprintf("%vAll", typename),
+			Comment:     protocode.Commentf("Queries a list of %v items", variable),
+			RequestType: fmt.Sprintf("QueryAll%vRequest", typename),
+			ReturnsType: fmt.Sprintf("QueryAll%vResponse", typename),
 			Elements: []proto.Visitee{
 				&proto.Option{
 					Name:     "(google.api.http).get",
@@ -313,11 +304,7 @@ func stargateProtoQueryMessages(tree *protocode.File, opts *typed.Options) {
 	msgGetRequest := protocode.CreateMessagef("QueryGet%vRequest", opts.TypeName.UpperCamel)
 	msgAllRequest := protocode.CreateMessagef("QueryAll%vRequest", opts.TypeName.UpperCamel)
 
-	paginationField := &proto.Field{
-		Name: "pagination",
-		Type: "cosmos.base.query.v1beta1.PageResponse",
-	}
-	namedField := &proto.Field{
+	namedField := proto.Field{
 		Name: opts.TypeName.UpperCamel,
 		Type: opts.TypeName.UpperCamel,
 		Options: []*proto.Option{
@@ -325,14 +312,20 @@ func stargateProtoQueryMessages(tree *protocode.File, opts *typed.Options) {
 		},
 	}
 
-	msgGetRequest.AppendField(&proto.Field{Name: "id", Type: "uint64"})
+	msgGetRequest.Append(proto.Field{Name: "id", Type: "uint64"})
 
-	msgGetResponse.AppendField(namedField)
+	msgGetResponse.Append(namedField)
 
-	msgAllRequest.AppendField(paginationField)
+	msgAllRequest.Append(proto.Field{
+		Name: "pagination",
+		Type: "cosmos.base.query.v1beta1.PageRequest",
+	})
 
 	msgAllResponse.AppendRepeatedField(namedField)
-	msgAllResponse.AppendField(paginationField)
+	msgAllResponse.Append(proto.Field{
+		Name: "pagination",
+		Type: "cosmos.base.query.v1beta1.PageResponse",
+	})
 
 	tree.Messages = append(
 		tree.Messages,
@@ -345,16 +338,14 @@ func stargateProtoQueryMessages(tree *protocode.File, opts *typed.Options) {
 
 func stargateCreateCaseClause(action string, opts *typed.Options) *dst.CaseClause {
 	name := fmt.Sprintf("%v%v", action, opts.TypeName.UpperCamel)
-	typename := gocode.Identifier("types", fmt.Sprintf("Msg%v", name))
+	typename := gocode.Name("types.Msg%v", name)
 
-	wrapSDKContext := gocode.Call("msgServer", name).
-		WithParameters(gocode.Call("sdk", "WrapSDKContext").WithArgument("ctx").Node()).
-		WithArgument("msg").
+	wrapSDKContext := gocode.Callf("msgServer.%s", name).
+		WithParameters(gocode.Call("sdk.WrapSDKContext").WithVars("ctx").Node()).
+		WithVars("msg").
 		Node()
-	wrapServiceResult := gocode.Call("sdk", "WrapServiceResult").
-		WithArgument("ctx").
-		WithArgument("res").
-		WithArgument("err").
+	wrapServiceResult := gocode.Call("sdk.WrapServiceResult").
+		WithVars("ctx", "res", "err").
 		Node()
 
 	return &dst.CaseClause{

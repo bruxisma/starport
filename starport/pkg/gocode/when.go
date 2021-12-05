@@ -2,6 +2,7 @@ package gocode
 
 import "github.com/dave/dst"
 
+// WhenBuilder is used to declare an initializing IfStatement
 type WhenBuilder struct {
 	condition *IfStatement
 	assign    *Assignment
@@ -27,13 +28,13 @@ func whenCreateTargets(assignment *Assignment, items ...string) *WhenBuilder {
 	}
 }
 
-func (when *WhenBuilder) To(expr dst.Expr, exprs ...dst.Expr) *WhenBuilder {
-	when.assign.To(expr, exprs...)
+func (when *WhenBuilder) To(items ...interface{}) *WhenBuilder {
+	when.assign.To(items...)
 	return when
 }
 
-func (when *WhenBuilder) IfVar(name string, fields ...string) *IfStatement {
-	return when.If(Identifier(name, fields...))
+func (when *WhenBuilder) IfVar(name string) *IfStatement {
+	return when.If(Identifier(name))
 }
 
 func (when *WhenBuilder) If(expr dst.Expr) *IfStatement {

@@ -10,12 +10,8 @@ type IndexExpression struct {
 	inner *dst.IndexExpr
 }
 
-func IndexInto(name string, fields ...string) *IndexExpression {
-	return Index(Identifier(name, fields...))
-}
-
-func IndexIntof(format string, args ...interface{}) *IndexExpression {
-	return IndexInto(fmt.Sprintf(format, args...))
+func IndexInto(format string, args ...interface{}) *IndexExpression {
+	return Index(Identifier(fmt.Sprintf(format, args...)))
 }
 
 func Index(expr dst.Expr) *IndexExpression {
@@ -24,8 +20,8 @@ func Index(expr dst.Expr) *IndexExpression {
 	}
 }
 
-func (ie *IndexExpression) WithIdentifier(name string, fields ...string) *dst.IndexExpr {
-	return ie.With(Identifier(name, fields...))
+func (ie *IndexExpression) WithIdentifier(name string) *dst.IndexExpr {
+	return ie.With(Identifier(name))
 }
 
 func (ie *IndexExpression) With(expr dst.Expr) *dst.IndexExpr {

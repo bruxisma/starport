@@ -40,11 +40,11 @@ func ForEach(key, value string) *RangeStatement {
 // In returns RangeStatement as part of the builder pattern and is used to
 // construct a range over some identifier or selector.
 //
-//This should be used when the name is some identifier or selector expression.
-//More complex range loops should use RangeStatement.Of to pass a manually
-//constructed expression.
-func (rs *RangeStatement) In(name string, fields ...string) *RangeStatement {
-	return rs.Of(Identifier(name, fields...))
+// This should be used when the name is some identifier or selector expression.
+// More complex range loops should use RangeStatement.Of to pass a manually
+// constructed expression.
+func (rs *RangeStatement) In(format string, args ...interface{}) *RangeStatement {
+	return rs.Of(Identifier(fmt.Sprintf(format, args...)))
 }
 
 // Of returns RangeStatement as part of the builder pattern and is used to
@@ -86,13 +86,13 @@ func (rs *RangeStatement) With(block *Block) *RangeStatement {
 }
 
 // Value sets the Value member of the inner dst.RangeStmt
-func (rs *RangeStatement) Value(name string, fields ...string) *RangeStatement {
-	rs.inner.Value = Identifier(name, fields...)
+func (rs *RangeStatement) Value(name string) *RangeStatement {
+	rs.inner.Value = Identifier(name)
 	return rs
 }
 
-func (rs *RangeStatement) Key(name string, fields ...string) *RangeStatement {
-	rs.inner.Key = Identifier(name, fields...)
+func (rs *RangeStatement) Key(name string) *RangeStatement {
+	rs.inner.Key = Identifier(name)
 	return rs
 }
 
@@ -107,7 +107,7 @@ func (rs *RangeStatement) Assignment() *RangeStatement {
 }
 
 func (rs *RangeStatement) PrependComment(format string, args ...interface{}) *RangeStatement {
-	rs.inner.Decorations().Start.Append("//%s\n", fmt.Sprintf(format, args))
+	rs.inner.Decorations().Start.Append("//%s\n", fmt.Sprintf(format, args...))
 	return rs
 }
 

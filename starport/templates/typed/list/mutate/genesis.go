@@ -18,7 +18,7 @@ func GenesisProtoGenesisState(tree *protocode.File, opts *typed.Options) (*proto
 		return nil, err
 	}
 
-	list := &proto.Field{
+	list := proto.Field{
 		Name: fmt.Sprintf("%sList", opts.TypeName.LowerCamel),
 		Type: opts.TypeName.UpperCamel,
 		Options: []*proto.Option{
@@ -27,7 +27,7 @@ func GenesisProtoGenesisState(tree *protocode.File, opts *typed.Options) (*proto
 	}
 
 	message.AppendRepeatedField(list)
-	message.AppendField(&proto.Field{
+	message.Append(proto.Field{
 		Name: fmt.Sprintf("%sCount", opts.TypeName.LowerCamel),
 		Type: "uint64",
 	})
@@ -59,7 +59,7 @@ func GenesisTypesDefaultGenesisReturnValue(tree *dst.File, opts *typed.Options) 
 }
 
 func GenesisTypesValidateStatements(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := gocode.FindFunction(tree, "Validate")
+	fn, err := gocode.FindMethod(tree, "GenesisState.Validate")
 	if err != nil {
 		return nil, err
 	}
@@ -80,13 +80,7 @@ func GenesisModuleInsertInit(tree *dst.File, opts *typed.Options) (*dst.File, er
 	if err != nil {
 		return nil, err
 	}
-	statements, err := genesisModuleCreateInit(opts)
-	if err != nil {
-		return nil, err
-	}
-	if len(statements) > 0 {
-		fn.Body.List = append(statements, fn.Body.List...)
-	}
+	fn.Body.List = append(genesisModuleCreateInit(opts), fn.Body.List...)
 	return tree, nil
 }
 
@@ -95,17 +89,15 @@ func GenesisModuleInsertExport(tree *dst.File, opts *typed.Options) (*dst.File, 
 	if err != nil {
 		return nil, err
 	}
-	statements, err := genesisModuleCreateExport(opts)
-	if err != nil {
-		return nil, err
-	}
-	if len(statements) > 0 {
-		// We want to preserve the 'return' statement
-		idx := len(fn.Body.List) - 1
-		back := fn.Body.List[idx]
-		front := fn.Body.List[:idx]
-		fn.Body.List = append(append(front, statements...), back)
-	}
+	gocode.Apply(fn, func(cursor *gocode.Cursor) bool {
+		if _, ok := cursor.Node().(*dst.ReturnStmt); !ok {
+			return true
+		}
+		for _, statement := range genesisModuleCreateExport(opts) {
+			cursor.InsertBefore(statement)
+		}
+		return false
+	})
 	return tree, nil
 }
 
@@ -129,15 +121,15 @@ func GenesisTestsInsertComparison(tree *dst.File, opts *typed.Options) (*dst.Fil
 		return nil, err
 	}
 
-	statements, err := genesisTestsCreateComparison(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	fn.Body.List = append(fn.Body.List, statements...)
+	fn.Body.List = append(fn.Body.List, genesisTestsCreateComparison(opts)...)
 	return tree, nil
 }
 
+// GenesisTestsInsertValidGenesisState inserts valid genesis state values for
+// testing.
+//
+// This function is quite complicated, as it inserts several values deep into
+// the state.
 func GenesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
@@ -187,7 +179,7 @@ func GenesisTestsInsertValidGenesisState(tree *dst.File, opts *typed.Options) (*
 	return tree, nil
 }
 
-func GenesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
+func GenesisTestsInsertInvalidGenesisState(tree *dst.File, opts *typed.Options) (*dst.File, error) {
 	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
 	if err != nil {
 		return nil, err
@@ -199,7 +191,11 @@ func GenesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*ds
 			return true
 		}
 		if composite, ok := cursor.Parent().(*dst.CompositeLit); ok {
-			composite.Elts = append(composite.Elts, genesisTestsCreateDuplicatedState(opts)...)
+			composite.Elts = append(
+				composite.Elts,
+				genesisTestsCreateDuplicatedState(opts).Build(),
+				genesisTestsCreateInvalidCount(opts).Build(),
+			)
 			return false
 		}
 		return true
@@ -208,167 +204,124 @@ func GenesisTestsInsertDuplicatedState(tree *dst.File, opts *typed.Options) (*ds
 	return tree, nil
 }
 
-func GenesisTestsInsertInvalidCount(tree *dst.File, opts *typed.Options) (*dst.File, error) {
-	fn, err := gocode.FindFunction(tree, "TestGenesisState_Validate")
-	if err != nil {
-		return nil, err
-	}
-	gocode.Apply(fn, func(cursor *gocode.Cursor) bool {
-		arrayType, ok := cursor.Node().(*dst.ArrayType)
-		if !ok || reflect.TypeOf(arrayType.Elt) != structType {
-			return true
-		}
-		composite, ok := cursor.Parent().(*dst.CompositeLit)
-		if !ok {
-			return true
-		}
-		composite.Elts = append(composite.Elts, genesisTestsCreateInvalidCount(opts)...)
-		return false
-	})
-	return tree, nil
-}
-
 // genesisTypesCreateValidateCheckNodes is a fairly complex set of statements
 // built for inserting into the Validate function
 func genesisTypesCreateValidateCheckNodes(opts *typed.Options) []dst.Stmt {
-	duplicateIdString := fmt.Sprintf("duplicated id for %s", opts.TypeName.LowerCamel)
-	countComparisonString := fmt.Sprintf(
-		"%s id should be lower or equal than the last id",
-		opts.TypeName.LowerCamel)
+	lower := opts.TypeName.LowerCamel
 
-	idMapAssign := gocode.Assignf("%sIdMap", opts.TypeName.LowerCamel).
+	idMapAssign := gocode.Definef("%sIdMap", lower).
 		To(gocode.MakeMapOf("uint64").WithIndexOf("bool"))
-	countAssign := gocode.Definef("%sCount", opts.TypeName.LowerCamel).
-		To(gocode.Call("gs", fmt.Sprintf("Get%sCount", opts.TypeName.UpperCamel)).Node())
+	countAssign := gocode.Definef("%sCount", lower).
+		To(gocode.Callf("gs.Get%sCount", opts.TypeName.UpperCamel))
 
 	list := fmt.Sprintf("%sList", opts.TypeName.UpperCamel)
-	rangeFor := gocode.ForEachItem("elem").In("gs", list).Do(func(ctx *gocode.Block) {
-		index := gocode.IndexIntof("%sIdMap", opts.TypeName.LowerCamel).
-			WithIdentifier("elem", "Id")
+	rangeFor := gocode.ForEachItem("elem").In("gs.%s", list).Do(func(ctx *gocode.Block) {
+		index := gocode.IndexInto("%sIdMap", lower).WithIdentifier("elem.Id")
 		ctx.WhenDefining("_", "ok").To(index).IfVar("ok").IsTrue().Then(func(ctx *gocode.Block) {
-			ctx.Returns(gocode.Call("fmt", "Errorf").WithString(duplicateIdString).Node())
+			ctx.Returns(gocode.Errorf("duplicated id for %s", lower))
 		})
-		ctx.IfVar("elem", "id").IsGreaterOrEqualToVarf("%sCount", opts.TypeName.LowerCamel).Then(func(ctx *gocode.Block) {
-			ctx.Returns(gocode.Call("fmt", "Errorf").WithString(countComparisonString).Node())
+		ctx.IfVar("elem.Id").IsGreaterOrEqualToVarf("%sCount", lower).Then(func(ctx *gocode.Block) {
+			countComparisonString := fmt.Sprintf("%s id should be lower or equal than the last id", lower)
+			ctx.Returns(gocode.Errorf(countComparisonString))
 		})
-		ctx.AssignIndex(
-			gocode.Name("%sIdMap", opts.TypeName.LowerCamel),
-			gocode.Identifier("elem", "Id"),
-		).
+		ctx.AssignIndex(gocode.Name("%sIdMap", lower), gocode.Identifier("elem.Id")).
 			To(gocode.True())
 	}).Done()
 
 	return []dst.Stmt{idMapAssign, countAssign, rangeFor}
 }
 
-func genesisModuleCreateInit(opts *typed.Options) ([]dst.Stmt, error) {
-	forLoop := gocode.ForEachItem("elem").
-		PrependComment("Set all the %s", opts.TypeName.LowerCamel).
-		In("genState", fmt.Sprintf("%sList", opts.TypeName.UpperCamel)).
+func genesisModuleCreateInit(opts *typed.Options) []dst.Stmt {
+	typename := opts.TypeName.UpperCamel
+	variable := opts.TypeName.LowerCamel
+	forLoop := gocode.ForEachItem("elem").In("genState. %sList", typename).
 		Do(func(block *gocode.Block) {
-			block.Call("k", fmt.Sprintf("Set%s", opts.TypeName.UpperCamel)).
-				WithArgument("ctx").
-				WithArgument("elem")
-		}).
-		Done()
-	set := gocode.Call("k", fmt.Sprintf("Set%sCount", opts.TypeName.UpperCamel)).
+			block.Callf("k.Set%s", typename).WithVars("ctx", "elem")
+		}).PrependComment("Set all the %s", variable).Done()
+	set := gocode.Callf("k.Set%sCount", typename).
 		WithArgument("ctx").
-		WithArgument("genState", fmt.Sprintf("%sCount", opts.TypeName.UpperCamel)).
-		PrependComment("Set %s count", opts.TypeName.LowerCamel).
+		WithArgumentf("genState.%sCount", typename).
+		PrependComment("Set %s count", variable).
 		AsStatement()
 
-	return []dst.Stmt{forLoop, set}, nil
+	return []dst.Stmt{forLoop, set}
 }
 
-func genesisModuleCreateExport(opts *typed.Options) ([]dst.Stmt, error) {
+func genesisModuleCreateExport(opts *typed.Options) []dst.Stmt {
 	typename := opts.TypeName.UpperCamel
-	statements := []dst.Stmt{
-		gocode.AssignVariable("genesis", fmt.Sprintf("%sList", typename)).
-			To(gocode.Call("k", fmt.Sprintf("GetAll%s", typename)).WithArgument("ctx").Node()),
-		gocode.AssignVariable("genesis", fmt.Sprintf("%sCount", typename)).
-			To(gocode.Call("k", fmt.Sprintf("Get%sCount", typename)).WithArgument("ctx").Node()),
+	return []dst.Stmt{
+		gocode.Assignf("genesis.%sList", typename).
+			To(gocode.Callf("k.GetAll%s", typename).WithArgument("ctx")),
+		gocode.Assignf("genesis.%sCount", typename).
+			To(gocode.Callf("k.Get%sCount", typename).WithArgument("ctx")),
 	}
-	return statements, nil
 }
 
 func genesisTestsCreateLists(opts *typed.Options) []dst.Expr {
-	list := &dst.KeyValueExpr{
-		Decs: gocode.KVDecs,
-		Key:  gocode.Name("%sList", opts.TypeName.UpperCamel),
-		Value: gocode.SliceOf("types", opts.TypeName.UpperCamel).
-			AppendExpr(gocode.KeyValues(map[string]interface{}{"Id": 0})).
-			AppendExpr(gocode.KeyValues(map[string]interface{}{"Id": 0})).
-			Node(),
-	}
+	list := gocode.KeyValue(
+		fmt.Sprintf("%sList", opts.TypeName.UpperCamel),
+		gocode.Slicef("types.%s", opts.TypeName.UpperCamel).Extend(
+			gocode.Anonymous{"Id": 0},
+			gocode.Anonymous{"Id": 0},
+		),
+	)
 	count := gocode.KeyValue(fmt.Sprintf("%sCount", opts.TypeName.UpperCamel), 2)
 	return []dst.Expr{list, count}
 }
 
-func genesisTestsCreateComparison(opts *typed.Options) ([]dst.Stmt, error) {
+func genesisTestsCreateComparison(opts *typed.Options) []dst.Stmt {
 	count := fmt.Sprintf("%sCount", opts.TypeName.UpperCamel)
 	list := fmt.Sprintf("%sList", opts.TypeName.UpperCamel)
-	compareList := gocode.Call("require", "ElementsMatch").
+	compareList := gocode.Call("require.ElementsMatch").
 		WithArgument("t").
-		WithArgument("genesisState", list).
-		WithArgument("got", list).
+		WithArgumentf("genesisState.%s", list).
+		WithArgumentf("got.%s", list).
 		AsStatement()
-	compareCount := gocode.Call("require", "Equal").
+	compareCount := gocode.Call("require.Equal").
 		WithArgument("t").
-		WithArgument("genesisState", count).
-		WithArgument("got", count).
+		WithArgumentf("genesisState.%s", count).
+		WithArgumentf("got.%s", count).
 		AsStatement()
-	return []dst.Stmt{compareList, compareCount}, nil
+	return []dst.Stmt{compareList, compareCount}
 }
 
 func genesisTestsCreateValidGenesisState(opts *typed.Options) []dst.Expr {
 	return []dst.Expr{
-		&dst.KeyValueExpr{
-			Key: gocode.Name("%sList", opts.TypeName.UpperCamel),
-			Value: gocode.SliceOf("types", opts.TypeName.UpperCamel).
-				AppendExpr(
-					gocode.AnonymousStruct().AppendField("Id", 0).Done(),
-					gocode.AnonymousStruct().AppendField("Id", 1).Done(),
-				).
-				Node(),
-		},
+		gocode.KeyValue(
+			fmt.Sprintf("%sList", opts.TypeName.UpperCamel),
+			gocode.Slicef("types.%s", opts.TypeName.UpperCamel).Extend(
+				gocode.Anonymous{"Id": 0},
+				gocode.Anonymous{"Id": 1},
+			)),
 		gocode.KeyValue(fmt.Sprintf("%sCount", opts.TypeName.UpperCamel), 2),
 	}
 }
 
-func genesisTestsCreateDuplicatedState(opts *typed.Options) []dst.Expr {
-	return []dst.Expr{
-		gocode.AnonymousStruct().
-			AppendField("desc", fmt.Sprintf("duplicated %s", opts.TypeName.LowerCamel)).
-			AppendField("valid", false).
-			AppendExpr("genState",
-				gocode.Struct("types", "GenesisState").
-					AppendExpr(
-						fmt.Sprintf("%sList", opts.TypeName.UpperCamel),
-						gocode.SliceOf("types", opts.TypeName.UpperCamel).
-							AppendExpr(
-								gocode.AnonymousStruct().AppendField("Id", 0).Done(),
-								gocode.AnonymousStruct().AppendField("Id", 0).Done(),
-							).Node(),
-					).AddressOf(),
-			).Done(),
+func genesisTestsCreateDuplicatedState(opts *typed.Options) gocode.Builder {
+	typename := opts.TypeName.UpperCamel
+	return gocode.Anonymous{
+		"desc":  fmt.Sprintf("duplicated %s", opts.TypeName.LowerCamel),
+		"valid": false,
+		"genState": gocode.Struct("types.GenesisState").Extend(map[string]interface{}{
+			fmt.Sprintf("%sList", typename): gocode.Slicef("types.%s", typename).Extend(
+				gocode.Anonymous{"Id": 0},
+				gocode.Anonymous{"Id": 0},
+			),
+		}).AddressOf(),
 	}
 }
 
-func genesisTestsCreateInvalidCount(opts *typed.Options) []dst.Expr {
-	return []dst.Expr{
-		gocode.AnonymousStruct().
-			AppendField("desc", fmt.Sprintf("duplicated %s", opts.TypeName.LowerCamel)).
-			AppendField("valid", false).
-			AppendExpr(
-				"genState",
-				gocode.Struct("types", "GenesisState").
-					AppendField(fmt.Sprintf("%sCount", opts.TypeName.UpperCamel), 0).
-					AppendExpr(
-						fmt.Sprintf("%sList", opts.TypeName.UpperCamel),
-						gocode.SliceOf("types", opts.TypeName.UpperCamel).
-							AppendExpr(gocode.AnonymousStruct().AppendField("Id", 1).Done()).
-							Node(),
-					).AddressOf(),
-			).Done(),
+func genesisTestsCreateInvalidCount(opts *typed.Options) gocode.Builder {
+	typename := opts.TypeName.UpperCamel
+	variable := opts.TypeName.LowerCamel
+	return gocode.Anonymous{
+		"desc":  fmt.Sprintf("invalid %s count", variable),
+		"valid": false,
+		"genState": gocode.Struct("types.GensisState").Extend(map[string]interface{}{
+			fmt.Sprintf("%sCount", typename): 0,
+			fmt.Sprintf("%sList", typename): gocode.Slicef("types.%s", typename).Extend(
+				gocode.Anonymous{"Id": 1},
+			),
+		}).AddressOf(),
 	}
 }

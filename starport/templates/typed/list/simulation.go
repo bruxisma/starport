@@ -1,9 +1,6 @@
 package list
 
 import (
-	"errors"
-	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/gobuffalo/genny"
@@ -35,9 +32,6 @@ func moduleSimulationModify(opts *typed.Options) genny.RunFn {
 		if err != nil {
 			return reportModifyError(path, err)
 		}
-
-		io.Copy(os.Stdout, buffer)
-		return errors.New("STOP")
 
 		newFile := genny.NewFile(path, buffer)
 		return r.File(newFile)

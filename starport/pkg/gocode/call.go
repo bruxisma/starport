@@ -13,6 +13,8 @@ type FunctionCall struct {
 	inner *dst.CallExpr
 }
 
+// Callf is used to construct a CallStatement by using the provided format
+// specifiers to construct an identifier
 func Callf(format string, args ...interface{}) *FunctionCall {
 	return Call(fmt.Sprintf(format, args...))
 }
@@ -21,10 +23,10 @@ func Callf(format string, args ...interface{}) *FunctionCall {
 //
 // Additional arguments can be added with the FunctionCall.WithParameters or
 // FunctionCall.WithParameter function.
-func Call(name string, fields ...string) *FunctionCall {
+func Call(name string) *FunctionCall {
 	return &FunctionCall{
 		inner: &dst.CallExpr{
-			Fun:  Identifier(name, fields...),
+			Fun:  Identifier(name),
 			Args: []dst.Expr{},
 		},
 	}
@@ -37,17 +39,34 @@ func (fc *FunctionCall) WithParameters(exprs ...dst.Expr) *FunctionCall {
 	return fc
 }
 
+// WithArgumentf returns the received FunctionCall after appending the given
+// formatted string as an Identifier
 func (fc *FunctionCall) WithArgumentf(format string, args ...interface{}) *FunctionCall {
 	return fc.WithArgument(fmt.Sprintf(format, args...))
 }
 
 // WithArgument returns the received FunctionCall after appending the given
 // values as either an identifier or selector expression.
-func (fc *FunctionCall) WithArgument(name string, fields ...string) *FunctionCall {
-	return fc.WithParameters(Identifier(name, fields...))
+func (fc *FunctionCall) WithArgument(name string) *FunctionCall {
+	return fc.WithParameters(Identifier(name))
 }
 
-// WithArgument returns the received FunctionCall after appending the given
+// WithVars returns the received FunctionCall after appending each value
+// provided as an identifier.
+func (fc *FunctionCall) WithVars(vars ...string) *FunctionCall {
+	for _, name := range vars {
+		fc.WithArgument(name)
+	}
+	return fc
+}
+
+// WithStringf returns the received FunctionCall after appending the string
+// built from the given format specifiers
+func (fc *FunctionCall) WithStringf(format string, args ...interface{}) *FunctionCall {
+	return fc.WithString(fmt.Sprintf(format, args...))
+}
+
+// WithString returns the received FunctionCall after appending the given
 // argument as a string literal.
 func (fc *FunctionCall) WithString(text string) *FunctionCall {
 	return fc.WithParameters(BasicString(text))
@@ -58,8 +77,8 @@ func (fc *FunctionCall) WithString(text string) *FunctionCall {
 //
 // NOTE: This function returns a CallExpr because variadic arguments are the
 // last parameter in a function.
-func (fc *FunctionCall) WithVariadicArgument(name string, fields ...string) *dst.CallExpr {
-	return fc.WithVariadicExpression(Identifier(name, fields...))
+func (fc *FunctionCall) WithVariadicArgument(name string) *dst.CallExpr {
+	return fc.WithVariadicExpression(Identifier(name))
 }
 
 // WithVariadicExpression returns the constructed CallExpr after appending the
@@ -79,7 +98,7 @@ func (fc *FunctionCall) AsStatement() *dst.ExprStmt {
 	return &dst.ExprStmt{X: fc.inner}
 }
 
-// PrependCOmment returns the received FunctionCall after prepending the given
+// PrependComment returns the received FunctionCall after prepending the given
 // format string as a single line comment.
 func (fc *FunctionCall) PrependComment(format string, args ...interface{}) *FunctionCall {
 	fc.inner.Decorations().Start.Append("//%s\n", fmt.Sprintf(format, args...))

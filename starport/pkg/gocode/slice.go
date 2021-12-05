@@ -1,16 +1,25 @@
 package gocode
 
-import "github.com/dave/dst"
+import (
+	"fmt"
 
-type Slice struct {
+	"github.com/dave/dst"
+)
+
+// SliceBuilder is used to construct a slice literal
+type SliceBuilder struct {
 	inner *dst.CompositeLit
 }
 
-func SliceOf(name string, fields ...string) *Slice {
-	return &Slice{
+func Slicef(format string, args ...interface{}) *SliceBuilder {
+	return SliceOf(fmt.Sprintf(format, args...))
+}
+
+func SliceOf(name string) *SliceBuilder {
+	return &SliceBuilder{
 		inner: &dst.CompositeLit{
 			Type: &dst.ArrayType{
-				Elt: Identifier(name, fields...),
+				Elt: Identifier(name),
 			},
 			Elts: []dst.Expr{},
 		},
@@ -21,13 +30,13 @@ func SliceOf(name string, fields ...string) *Slice {
 //
 // This function takes one of an integer, string, bool, dst.Expr, or
 // gocode.Builder. Any other types will cause a panic
-func (slice *Slice) Append(item interface{}) *Slice {
+func (slice *SliceBuilder) Append(item interface{}) *SliceBuilder {
 	return slice.AppendExpr(Item(item))
 }
 
 // Extend returns the same Slice that it receives after extending the Slice by
 // appending each argument to it.
-func (slice *Slice) Extend(args ...interface{}) *Slice {
+func (slice *SliceBuilder) Extend(args ...interface{}) *SliceBuilder {
 	for _, item := range args {
 		slice.Append(item)
 	}
@@ -36,15 +45,15 @@ func (slice *Slice) Extend(args ...interface{}) *Slice {
 
 // AppendExpr returns the received Slice after appending raw dst.Expr to the
 // inner composite literal
-func (slice *Slice) AppendExpr(expr dst.Expr, exprs ...dst.Expr) *Slice {
+func (slice *SliceBuilder) AppendExpr(expr dst.Expr, exprs ...dst.Expr) *SliceBuilder {
 	slice.inner.Elts = append(append(slice.inner.Elts, expr), exprs...)
 	return slice
 }
 
-func (slice *Slice) Node() *dst.CompositeLit {
+func (slice *SliceBuilder) Node() *dst.CompositeLit {
 	return slice.inner
 }
 
-func (slice *Slice) Build() dst.Expr {
+func (slice *SliceBuilder) Build() dst.Expr {
 	return slice.Node()
 }

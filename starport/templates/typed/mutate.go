@@ -8,16 +8,6 @@ import (
 	"github.com/tendermint/starport/starport/pkg/gocode"
 )
 
-func findGenericDeclaration(tree *dst.File, kind token.Token) (*dst.GenDecl, error) {
-	for _, decl := range tree.Decls {
-		node, ok := decl.(*dst.GenDecl)
-		if ok && node.Tok == kind {
-			return node, nil
-		}
-	}
-	return nil, fmt.Errorf("could not locate generic declaration %v", kind)
-}
-
 // MutateImport will add the given path (or name, path combination) to the
 // golang AST
 func MutateImport(tree *dst.File, values ...string) (*dst.File, error) {
