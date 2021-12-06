@@ -1,3 +1,32 @@
+# HackAtom VI Code Scaffold Challenge
+
+The Code Scaffold challenge has deviated from the current approach to building.
+To build this version of starport, [Taskfile](https://taskfile.dev) are used.
+
+Use the following commands to install it.
+
+```shell
+$ go install github.com/go-task/task/v3/cmd/task@latest
+```
+
+Creating a chain is as simple as calling
+
+```shell
+$ task create -- github.com/hackatom/challenge # Use any golang package name as desired
+```
+
+To see an example of calling the `starport scaffold list` command, simply
+execute:
+
+```shell
+$ task scaffold
+```
+
+To execute the "Scaffold a List" step found in the [Advanced Module: Defi
+Loan](https://docs.starport.network/guide/loan.html#scaffold-a-list) tutorial.
+NOTE: This command *will not* pass `--no-message` for completeness, as all the
+`templates/typed/list` modifications are generated.
+
 # Starport
 
 ![Starport](./assets/starport.png)
